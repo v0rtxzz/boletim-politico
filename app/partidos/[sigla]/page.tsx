@@ -100,7 +100,7 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
         <ol className="mt-6 space-y-4">
           {noticias.map((n) => {
             const b = boletins.get(n.boletim_id);
-            const ancora = b ? ancoraNoticia(b.conteudo_md, b.titulo_destaque, n.titulo, n.secao) : "";
+            const ancora = b ? ancoraNoticia(b.conteudo_md, b.titulo_destaque, n.trecho_titulo ?? n.titulo, n.secao) : "";
             return (
               <li key={n.id} className="rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
