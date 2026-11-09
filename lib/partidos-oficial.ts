@@ -36,7 +36,7 @@ export async function buscarRegistroTSE() {
   const hoje = new Date().toISOString().slice(0, 10);
   const dataISO = (d: string) => { const m = d.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; };
   const mapa = new Map<string, RegistroPartido>();
-  const diag = { arquivos: [] as string[], colunas: [] as string[], linhas: 0, nacionais: 0, amostraNacional: [] as string[][] };
+  const diag = { arquivos: [] as string[], colunas: [] as string[], linhas: 0, nacionais: 0, amostraNacional: [] as string[][], situacoes: {} as Record<string, number>, descartados: [] as string[] };
 
   const unzip = new Unzip();
   unzip.register(UnzipInflate);
@@ -54,7 +54,7 @@ export async function buscarRegistroTSE() {
         if (!diag.colunas.length) diag.colunas = cab;
         const i = (re: RegExp) => cab.findIndex((x) => re.test(x));
         idx = { sigla: i(/^SG_PARTIDO$/), nome: i(/^NM_PARTIDO$/), num: i(/^NR_PARTIDO$/), uf: i(/^SG_UF$/),
-          abr: i(/ABRANGENCIA|TP_ORGAO|DS_TIPO_ORGAO/), sit: i(/SITUACAO/), fim: i(/^DT_FIM_VIGENCIA|^DT_FIM/) };
+          abr: i(/^DS_TIPO_ABRANGENCIA$/), sit: i(/^DS_SITU_EXERC_ORGAO_PARTIDARIO$/), fim: i(/^DT_FIM_VIGENCIA_ORGAO$/) };
         return;
       }
       diag.linhas++;
@@ -62,9 +62,14 @@ export async function buscarRegistroTSE() {
       const nacional = abr.includes("NACIONAL") || (idx.abr < 0 && (c[idx.uf] ?? "") === "BR");
       if (!nacional) return;
       diag.nacionais++;
-      if (diag.amostraNacional.length < 3) diag.amostraNacional.push(c);
-      if (idx.sit >= 0 && /INATIV|ANULAD|CANCEL|EXTINT|SUSPENS|ENCERRAD/i.test(c[idx.sit] ?? "")) return;
-      if (idx.fim >= 0) { const f = dataISO(c[idx.fim] ?? ""); if (f && f < hoje) return; }
+      const sit = idx.sit >= 0 ? c[idx.sit] ?? "" : "";
+      diag.situacoes[sit] = (diag.situacoes[sit] ?? 0) + 1;
+      if (diag.amostraNacional.length < 3) diag.amostraNacional.push([c[idx.sigla], c[idx.abr], c[idx.fim], sit]);
+      const fimVig = idx.fim >= 0 ? dataISO(c[idx.fim] ?? "") : "";
+      if ((sit && /INATIV|ANULAD|CANCEL|EXTINT|SUSPENS|ENCERRAD|BAIXAD/i.test(sit)) || (fimVig && fimVig < hoje)) {
+        if (!diag.descartados.includes(c[idx.sigla])) diag.descartados.push(c[idx.sigla]);
+        return;
+      }
       const sigla = c[idx.sigla], nome = c[idx.nome];
       if (!sigla || !nome) return;
       const slug = slugPartido(sigla);
