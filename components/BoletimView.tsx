@@ -109,7 +109,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
             <p className="text-[1.05rem] font-medium primeira-maiuscula">{semana}</p>
             <p className="text-[var(--suave)]">{mesAno}</p>
             <p className="mt-2 text-sm text-[var(--suave)]">
-              {atual ? "Edição de hoje" : "Edição"} das <span className="num">{horario}</span>
+              {atual ? "Edição de hoje" : "Edição"} das {horario}
             </p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
         </h1>
 
         <p className="entrada-resto mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--suave)]">
-          <span>Publicado às <span className="num">{formatarHora(boletim.criado_em)}</span></span>
+          <span>Publicado às {formatarHora(boletim.criado_em)}</span>
           <span><span className="num">{minutos}</span> min de leitura</span>
           {fontes.length > 0 && <a href="#fontes" className="underline underline-offset-4 decoration-[var(--fio)] hover:decoration-[var(--tinta)]"><span className="num">{fontes.length}</span> fontes</a>}
         </p>
