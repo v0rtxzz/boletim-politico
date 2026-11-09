@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconeArquivo, IconeGlossario, IconeHoje, IconeTema } from "./Icones";
 import Notificacoes from "./Notificacoes";
+import PreferenciasTexto from "./PreferenciasTexto";
 
 const itens = [
   { href: "/", rotulo: "Hoje", Icone: IconeHoje, ativo: (p: string) => p === "/" },
@@ -36,6 +37,7 @@ export function Topo() {
               </Link>
             ))}
           </nav>
+          <PreferenciasTexto />
           <Notificacoes />
           <button type="button" onClick={alternarTema} aria-label="Alternar tema claro ou escuro"
             className="w-11 h-11 grid place-items-center rounded-full text-[var(--suave)] hover:text-[var(--tinta)] hover:bg-[var(--acento-fundo)] transition-colors cursor-pointer">

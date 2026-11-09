@@ -8,6 +8,8 @@ import { dividirBoletim } from "@/lib/blocos";
 import ProgressoLeitura from "./ProgressoLeitura";
 import LeitorVoz from "./LeitorVoz";
 import { IconeExterno } from "./Icones";
+import BotaoCompartilhar from "./BotaoCompartilhar";
+import ContinuarLeitura from "./ContinuarLeitura";
 
 const ROTULOS_CAMPO = ["o que aconteceu", "contexto", "consequencia", "consequencias", "fonte", "fontes", "impacto"];
 const SELOS: Record<string, string> = {
@@ -65,7 +67,15 @@ function criarComponentes(mapa: Mapa): Components {
       return <li className={cls} data-bloco={bloco(mapa, node)}>{children}</li>;
     },
     p: ({ node, children }) => <p data-bloco={bloco(mapa, node)}>{children}</p>,
-    h3: ({ node, children }) => <h3 data-bloco={bloco(mapa, node)}>{children}</h3>,
+    h3: ({ node, children }) => {
+      const b = bloco(mapa, node);
+      return (
+        <h3 data-bloco={b} id={b !== undefined ? `item-${b}` : undefined}>
+          <span className="titulo-item">{children}</span>
+          <BotaoCompartilhar />
+        </h3>
+      );
+    },
     h4: ({ node, children }) => <h4 data-bloco={bloco(mapa, node)}>{children}</h4>,
     blockquote: ({ node, children }) => <blockquote data-bloco={bloco(mapa, node)}>{children}</blockquote>,
     tr: ({ node, children }) => <tr data-bloco={bloco(mapa, node)}>{children}</tr>,
@@ -95,7 +105,8 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
   const numeradas = secoes.filter((s) => s.numero);
 
   return (
-    <article>
+    <article data-data={boletim.data}>
+      <ContinuarLeitura data={boletim.data} />
       <ProgressoLeitura secoes={numeradas.map(({ id, numero, nome }) => ({ id, numero, nome }))} />
 
       <header className="pt-4 pb-8">

@@ -75,6 +75,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
   const [vel, setVel] = useState(1);
   const [aviso, setAviso] = useState("");
   const [tempo, setTempo] = useState(0);
+  const [retomar, setRetomar] = useState<number | null>(null); // trecho onde a escuta parou
 
   const audio = useRef<HTMLAudioElement | null>(null);
   const idxRef = useRef(0);
@@ -86,6 +87,16 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
   const silencioUrl = useRef("");
 
   useEffect(() => { modoRef.current = modo; }, [modo]);
+
+  // Retoma a escuta de onde parou (guardado no aparelho por 7 dias).
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(`ouvir:${data}`) ?? "null") as { idx: number; quando: number } | null;
+      if (v && v.idx > 1 && v.idx < total - 1 && Date.now() - v.quando < 7 * 864e5) {
+        idxRef.current = v.idx; setIndice(v.idx); setRetomar(v.idx);
+      }
+    } catch {}
+  }, [data, total]);
 
   // Descobre se já há áudio neural pronto para este boletim.
   useEffect(() => {
@@ -122,6 +133,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
     idxRef.current = i;
     setIndice(i);
+    try { localStorage.setItem(`ouvir:${data}`, JSON.stringify({ idx: i, quando: Date.now() })); } catch {}
     const el = document.querySelector<HTMLElement>(`[data-bloco="${i}"]`);
     if (!el) return;
     el.classList.add("lendo");
@@ -131,7 +143,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
       const reduzido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollTo({ top: window.scrollY + r.top - window.innerHeight * 0.3, behavior: reduzido ? "auto" : "smooth" });
     }
-  }, []);
+  }, [data]);
 
   // ---------- Modo neural (arquivo de áudio) ----------
   useEffect(() => {
@@ -148,7 +160,13 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     };
     const onPlay = () => { if (!a.src.startsWith("blob:")) setTocando(true); };
     const onPause = () => setTocando(false);
-    const onEnded = () => { if (a.src.startsWith("blob:")) return; setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); };
+    const onEnded = () => {
+      if (a.src.startsWith("blob:")) return;
+      setTocando(false);
+      document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
+      try { localStorage.removeItem(`ouvir:${data}`); } catch {}
+      idxRef.current = 0;
+    };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("play", onPlay);
     a.addEventListener("pause", onPause);
@@ -157,7 +175,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
       a.removeEventListener("timeupdate", onTime); a.removeEventListener("play", onPlay);
       a.removeEventListener("pause", onPause); a.removeEventListener("ended", onEnded);
     };
-  }, [manifesto, marcar]);
+  }, [manifesto, marcar, data]);
 
   const tocarNeural = useCallback((m: Manifesto, i?: number) => {
     const a = audio.current!;
@@ -181,7 +199,13 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     const g = ++geracao.current;
     if (synth.speaking || synth.pending) synth.cancel();
     const t = trechos[i];
-    if (!t) { setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); return; }
+    if (!t) {
+      setTocando(false);
+      document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
+      try { localStorage.removeItem(`ouvir:${data}`); } catch {}
+      idxRef.current = 0;
+      return;
+    }
     marcar(i);
     const partes = fatiar(t.texto);
     if (!voz.current) voz.current = escolherVoz();
@@ -202,7 +226,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     if (!comecou.current) setTimeout(() => {
       if (g === geracao.current && !comecou.current) setAviso("Nenhum som começou. No iPhone, confira se a chave lateral não está no modo silencioso e o volume.");
     }, 4000);
-  }, [trechos, marcar]);
+  }, [trechos, marcar, data]);
 
   const pararAparelho = () => { geracao.current++; if ("speechSynthesis" in window) window.speechSynthesis.cancel(); };
 
@@ -215,7 +239,9 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     else setAviso("Este navegador não tem leitura em voz alta.");
   };
 
-  const iniciar = async () => {
+  const iniciar = async (doInicio = false) => {
+    if (doInicio) idxRef.current = 0;
+    setRetomar(null);
     setAberto(true);
     setAviso("");
     if (status === "pronto" && manifesto) { setModo("neural"); tocarNeural(manifesto, idxRef.current); return; }
@@ -314,16 +340,22 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
   }, [aberto, modo, manifesto, falar, tocarNeural]);
 
   if (!aberto) {
+    const secaoRetomar = retomar !== null ? trechos[retomar]?.secao : null;
     return (
       <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <button type="button" onClick={iniciar}
+        <button type="button" onClick={() => iniciar()}
           className="inline-flex items-center gap-2.5 rounded-full bg-[var(--tinta)] text-[var(--papel)] pl-4 pr-5 py-3 font-medium cursor-pointer active:scale-[0.97] transition-transform">
           <Icone d={FONE} size={20} />
-          Ouvir o boletim
+          {secaoRetomar ? "Continuar ouvindo" : "Ouvir o boletim"}
         </button>
-        {status === "pronto" && manifesto && (
+        {secaoRetomar ? (
+          <span className="text-sm text-[var(--suave)]">
+            Parou em {secaoRetomar}.{" "}
+            <button type="button" onClick={() => iniciar(true)} className="underline underline-offset-4 text-[var(--tinta)] cursor-pointer">Ouvir do início</button>
+          </span>
+        ) : status === "pronto" && manifesto ? (
           <span className="text-sm text-[var(--suave)]">Voz natural, <span className="num">{fmt(manifesto.duracao)}</span></span>
-        )}
+        ) : null}
       </div>
     );
   }

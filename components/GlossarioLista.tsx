@@ -44,8 +44,8 @@ export default function GlossarioLista({ termos }: { termos: Termo[] }) {
           <dl className="mt-3 rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] overflow-hidden">
             {visiveis.filter((t) => inicial(t.termo) === l).map((t) => (
               <div key={t.id} className="px-5 py-5 border-t border-[var(--fio)] first:border-t-0">
-                <dt className="font-serif [font-variation-settings:'opsz'_36] text-[1.3rem] leading-tight font-semibold">{t.termo}</dt>
-                <dd className="mt-2 font-serif text-[1.08rem] leading-relaxed">{t.definicao}</dd>
+                <dt className="font-serif [font-variation-settings:'opsz'_36] text-[calc(1.3rem*var(--escala))] leading-tight font-semibold">{t.termo}</dt>
+                <dd className="mt-2 font-serif text-[calc(1.08rem*var(--escala))] leading-relaxed">{t.definicao}</dd>
                 {t.exemplo && (
                   <dd className="mt-3 text-[0.95rem] leading-relaxed text-[var(--suave)] border-l-2 border-[var(--fio)] pl-3">
                     <span className="font-medium text-[var(--tinta)]">No noticiário: </span>{t.exemplo}

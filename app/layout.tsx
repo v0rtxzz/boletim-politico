@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Newsreader, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import RegistrarSW from "@/components/RegistrarSW";
+import StatusRede from "@/components/StatusRede";
 import { BarraInferior, Topo } from "@/components/Navegacao";
 
 const texto = Newsreader({ subsets: ["latin"], variable: "--fonte-texto", axes: ["opsz"], style: ["normal", "italic"], display: "swap" });
@@ -29,7 +30,7 @@ export const viewport: Viewport = {
 };
 
 // Aplica o tema salvo antes da pintura, para não piscar.
-const scriptTema = `try{var t=localStorage.getItem("tema");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+const scriptTema = `try{var d=document.documentElement,t=localStorage.getItem("tema"),x=localStorage.getItem("texto");if(t)d.dataset.theme=t;if(x)d.dataset.texto=x}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh">
         <Topo />
+        <StatusRede />
         <main className="mx-auto max-w-[42rem] px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-16">{children}</main>
         <BarraInferior />
         <RegistrarSW />
