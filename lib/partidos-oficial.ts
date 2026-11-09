@@ -100,10 +100,15 @@ export async function buscarBancadaCamara() {
   const contagem: Record<string, number> = {};
   const nomes: { nome: string; sigla: string }[] = [];
   const politicos: Parlamentar[] = [];
-  let url: string | null = `${FONTE_CAMARA}?itens=100&pagina=1&ordem=ASC&ordenarPor=nome`;
+  let url: string | null = `${FONTE_CAMARA}?itens=100&pagina=1`;
   for (let guarda = 0; url && guarda < 20; guarda++) {
-    const r: Response = await fetch(url, { headers: { ...UA, Accept: "application/json" }, cache: "no-store" });
-    if (!r.ok) throw new Error(`Câmara respondeu ${r.status}`);
+    let r: Response | null = null;
+    for (let t = 0; t < 4; t++) {
+      r = await fetch(url, { headers: { ...UA, Accept: "application/json" }, cache: "no-store" });
+      if (r.ok || r.status < 500) break;
+      await new Promise((ok) => setTimeout(ok, 3000 * (t + 1))); // a API da Câmara às vezes devolve 502/504
+    }
+    if (!r || !r.ok) throw new Error(`Câmara respondeu ${r?.status}`);
     const j = (await r.json()) as { dados: { id: number; nome: string; siglaPartido: string; siglaUf: string; urlFoto: string }[]; links?: { rel: string; href: string }[] };
     for (const d of j.dados) {
       const s = slugPartido(d.siglaPartido);
