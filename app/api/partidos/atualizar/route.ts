@@ -4,7 +4,7 @@ import { FONTE_CAMARA, FONTE_SENADO, FONTE_TSE, PAGINA_TSE, buscarBancadaCamara,
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const tentar = async <T,>(f: () => Promise<T>) => {
   try { return { ok: true as const, v: await f() }; } catch (e) { return { ok: false as const, erro: (e as Error).message }; }
@@ -22,9 +22,19 @@ export async function GET(req: Request) {
   const autorizado = !!process.env.CRON_SECRET && req.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
   if (!simular && !autorizado) return NextResponse.json({ erro: "não autorizado" }, { status: 401 });
 
-  const [tse, camara, senado] = await Promise.all([
-    tentar(buscarRegistroTSE), tentar(buscarBancadaCamara), tentar(buscarBancadaSenado),
-  ]);
+  const pTse = tentar(buscarRegistroTSE);
+  const [camara, senado] = await Promise.all([tentar(buscarBancadaCamara), tentar(buscarBancadaSenado)]);
+
+  // Parlamentares em exercício (com foto oficial): gravados já, sem esperar o arquivo do TSE (lento).
+  const politicos: Record<string, unknown> = {};
+  if (!simular && autorizado) {
+    for (const [casa, res, fonte] of [["camara", camara, FONTE_CAMARA], ["senado", senado, FONTE_SENADO]] as const) {
+      if (!res.ok) continue;
+      const { data: n, error: e } = await supabase.rpc("atualizar_politicos", { p_segredo: process.env.CRON_SECRET, p_casa: casa, p_fonte: fonte, p_lista: res.v.politicos });
+      politicos[casa] = e ? `erro: ${e.message}` : n;
+    }
+  }
+  const tse = await pTse;
 
   // Diagnóstico: consulta o portal de dados abertos do TSE (API pública CKAN) atrás do cadastro de partidos.
   if (url.searchParams.has("sondar")) {
@@ -61,15 +71,6 @@ export async function GET(req: Request) {
   });
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
 
-  // Parlamentares em exercício (com foto oficial) — usados nas áreas Políticos e Partidos.
-  const registrados = new Set((tse.ok ? tse.v.partidos : []).map((p) => p.slug));
-  const ajustar = (l: { partido_slug: string }[]) => l.map((p) => ({ ...p, partido_slug: registrados.size === 0 || registrados.has(p.partido_slug) ? p.partido_slug : "" }));
-  const politicos: Record<string, unknown> = {};
-  for (const [casa, res, fonte] of [["camara", camara, FONTE_CAMARA], ["senado", senado, FONTE_SENADO]] as const) {
-    if (!res.ok) continue;
-    const { data: n, error: e } = await supabase.rpc("atualizar_politicos", { p_segredo: process.env.CRON_SECRET, p_casa: casa, p_fonte: fonte, p_lista: ajustar(res.v.politicos) });
-    politicos[casa] = e ? `erro: ${e.message}` : n;
-  }
   const falhas = { tse: tse.ok ? null : tse.erro, camara: camara.ok ? null : camara.erro, senado: senado.ok ? null : senado.erro };
   console.log("partidos atualizados", data, falhas);
   return NextResponse.json({ resultado: data, politicos, falhas });
