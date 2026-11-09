@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/cron/audio", "schedule": "10 9 * * *" }]
+  "crons": [
+    { "path": "/api/cron/audio", "schedule": "10 9 * * *" },
+    { "path": "/api/partidos/atualizar", "schedule": "20 10 * * *" }
+  ]
 }
