@@ -117,11 +117,11 @@ Grave assim (substitui o que já existir para a data, sem duplicar):
 ```sql
 delete from public.noticias where data = 'AAAA-MM-DD';
 insert into public.noticias (boletim_id, data, titulo, trecho_titulo, resumo, secao, tipo, temas, fontes) values
-((select id from public.boletins where data = 'AAAA-MM-DD'), 'AAAA-MM-DD', $n$<título descritivo>$n$, $n$<texto exato do ### de onde saiu, ou null>$n$,
+((select id from public.boletins where data = 'AAAA-MM-DD'), 'AAAA-MM-DD', $n$<título descritivo>$n$, $n$<texto exato do ### de onde saiu>$n$ (ou null, sem aspas, se não veio de um ###),
  $n$<resumo>$n$, '<seção, ex.: 1. RESUMO DO DIA>', '<tipo>', '{<tema>,<tema>}', $n$[{"titulo":"...","url":"https://..."}]$n$::jsonb)
 returning id, titulo;
 insert into public.noticias_partidos (noticia_id, partido_slug, politico, papel, filiacao_fonte) values
-(<id>, '<slug>', $n$<nome do político, ou null se o ator é o próprio partido>$n$, $n$<papel>$n$, '<url da filiação ou null>');
+(<id>, '<slug>', $n$<nome do político>$n$ (ou null, sem aspas, se o ator é o próprio partido), $n$<papel>$n$, '<url da filiação>' (ou null));
 ```
 Verifique: select n.titulo, np.partido_slug, np.politico from public.noticias n left join public.noticias_partidos np on np.noticia_id = n.id where n.data = 'AAAA-MM-DD';
 
