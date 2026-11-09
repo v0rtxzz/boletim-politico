@@ -3,6 +3,7 @@ import { Newsreader, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import RegistrarSW from "@/components/RegistrarSW";
 import StatusRede from "@/components/StatusRede";
+import SelecaoGlossario from "@/components/SelecaoGlossario";
 import { BarraInferior, Topo } from "@/components/Navegacao";
 
 const texto = Newsreader({ subsets: ["latin"], variable: "--fonte-texto", axes: ["opsz"], style: ["normal", "italic"], display: "swap" });
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StatusRede />
         <main className="mx-auto max-w-[42rem] px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-16">{children}</main>
         <BarraInferior />
+        <SelecaoGlossario />
         <RegistrarSW />
       </body>
     </html>

@@ -43,6 +43,15 @@ export default async function Arquivo({ searchParams }: Props) {
           className="w-full rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] pl-12 pr-4 py-3.5 text-base outline-none placeholder:text-[var(--suave)] focus-visible:outline-2 focus-visible:outline-[var(--acento)]" />
       </form>
 
+      {!q && (
+        <Link href="/retrospectiva" className="mt-6 flex items-center justify-between gap-3 rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] px-4 py-4 hover:bg-[var(--acento-fundo)] transition-colors">
+          <span>
+            <span className="block font-semibold">Retrospectiva: 12 meses</span>
+            <span className="block text-sm text-[var(--suave)]">Os principais acontecimentos do último ano, com fonte.</span>
+          </span>
+          <span aria-hidden className="text-[var(--suave)] text-xl">›</span>
+        </Link>
+      )}
       {!q && <ContinuarLendo />}
 
       {q && (

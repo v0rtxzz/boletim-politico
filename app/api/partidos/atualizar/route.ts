@@ -60,7 +60,17 @@ export async function GET(req: Request) {
     p_senado: senado.ok ? { fonte: FONTE_SENADO, bancadas: senado.v.bancadas } : null,
   });
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
+
+  // Parlamentares em exercício (com foto oficial) — usados nas áreas Políticos e Partidos.
+  const registrados = new Set((tse.ok ? tse.v.partidos : []).map((p) => p.slug));
+  const ajustar = (l: { partido_slug: string }[]) => l.map((p) => ({ ...p, partido_slug: registrados.size === 0 || registrados.has(p.partido_slug) ? p.partido_slug : "" }));
+  const politicos: Record<string, unknown> = {};
+  for (const [casa, res, fonte] of [["camara", camara, FONTE_CAMARA], ["senado", senado, FONTE_SENADO]] as const) {
+    if (!res.ok) continue;
+    const { data: n, error: e } = await supabase.rpc("atualizar_politicos", { p_segredo: process.env.CRON_SECRET, p_casa: casa, p_fonte: fonte, p_lista: ajustar(res.v.politicos) });
+    politicos[casa] = e ? `erro: ${e.message}` : n;
+  }
   const falhas = { tse: tse.ok ? null : tse.erro, camara: camara.ok ? null : camara.erro, senado: senado.ok ? null : senado.erro };
   console.log("partidos atualizados", data, falhas);
-  return NextResponse.json({ resultado: data, falhas });
+  return NextResponse.json({ resultado: data, politicos, falhas });
 }

@@ -5,7 +5,8 @@ import { formatarData, listarGlossario } from "@/lib/supabase";
 export const metadata: Metadata = { title: "Glossário" };
 export const dynamic = "force-dynamic";
 
-export default async function Glossario() {
+export default async function Glossario({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q = "" } = await searchParams;
   const termos = await listarGlossario();
   termos.sort((a, b) => a.termo.localeCompare(b.termo, "pt-BR", { sensitivity: "base" }));
   const dados = termos.map((t) => ({
@@ -21,7 +22,7 @@ export default async function Glossario() {
       {dados.length === 0 ? (
         <p className="mt-10 text-[var(--suave)]">Os termos são adicionados automaticamente a cada boletim publicado.</p>
       ) : (
-        <GlossarioLista termos={dados} />
+        <GlossarioLista termos={dados} busca={q} />
       )}
     </div>
   );

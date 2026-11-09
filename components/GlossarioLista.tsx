@@ -8,8 +8,8 @@ type Termo = { id: number; termo: string; definicao: string; exemplo: string | n
 
 const inicial = (t: string) => semAcento(t).charAt(0).toUpperCase();
 
-export default function GlossarioLista({ termos }: { termos: Termo[] }) {
-  const [filtro, setFiltro] = useState("");
+export default function GlossarioLista({ termos, busca = "" }: { termos: Termo[]; busca?: string }) {
+  const [filtro, setFiltro] = useState(busca);
   const visiveis = useMemo(() => {
     const f = semAcento(filtro.trim());
     return f ? termos.filter((t) => semAcento(`${t.termo} ${t.definicao}`).includes(f)) : termos;

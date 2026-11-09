@@ -99,24 +99,31 @@ export async function buscarRegistroTSE() {
 export async function buscarBancadaCamara() {
   const contagem: Record<string, number> = {};
   const nomes: { nome: string; sigla: string }[] = [];
+  const politicos: Parlamentar[] = [];
   let url: string | null = `${FONTE_CAMARA}?itens=100&pagina=1&ordem=ASC&ordenarPor=nome`;
   for (let guarda = 0; url && guarda < 20; guarda++) {
     const r: Response = await fetch(url, { headers: { ...UA, Accept: "application/json" }, cache: "no-store" });
     if (!r.ok) throw new Error(`Câmara respondeu ${r.status}`);
-    const j = (await r.json()) as { dados: { nome: string; siglaPartido: string }[]; links?: { rel: string; href: string }[] };
+    const j = (await r.json()) as { dados: { id: number; nome: string; siglaPartido: string; siglaUf: string; urlFoto: string }[]; links?: { rel: string; href: string }[] };
     for (const d of j.dados) {
       const s = slugPartido(d.siglaPartido);
       contagem[s] = (contagem[s] ?? 0) + 1;
       nomes.push({ nome: d.nome, sigla: d.siglaPartido });
+      politicos.push({
+        id: `dep-${d.id}`, id_oficial: d.id, nome: d.nome, partido_sigla: d.siglaPartido, partido_slug: s, uf: d.siglaUf,
+        foto_url: (d.urlFoto ?? "").replace(/^http:/, "https:"),
+        pagina_url: `https://www.camara.leg.br/deputados/${d.id}`,
+      });
     }
     url = j.links?.find((l) => l.rel === "next")?.href ?? null;
   }
   const total = Object.values(contagem).reduce((a, b) => a + b, 0);
   if (total < 400) throw new Error(`Câmara: só ${total} deputados lidos`);
-  return { bancadas: contagem, total, nomes };
+  return { bancadas: contagem, total, nomes, politicos };
 }
 
-type Parl = { IdentificacaoParlamentar: { NomeParlamentar: string; SiglaPartidoParlamentar: string } };
+export type Parlamentar = { id: string; id_oficial: number; nome: string; partido_sigla: string; partido_slug: string; uf: string; foto_url: string; pagina_url: string };
+type Parl = { IdentificacaoParlamentar: { CodigoParlamentar: string; NomeParlamentar: string; SiglaPartidoParlamentar: string; UfParlamentar: string; UrlFotoParlamentar?: string; UrlPaginaParlamentar?: string } };
 /** Senadores em exercício, contados por partido. */
 export async function buscarBancadaSenado() {
   const r = await fetch(FONTE_SENADO, { headers: { ...UA, Accept: "application/json" }, cache: "no-store" });
@@ -126,11 +133,19 @@ export async function buscarBancadaSenado() {
   const arr = Array.isArray(lista) ? lista : lista ? [lista] : [];
   const contagem: Record<string, number> = {};
   const nomes: { nome: string; sigla: string }[] = [];
+  const politicos: Parlamentar[] = [];
   for (const p of arr) {
-    const s = slugPartido(p.IdentificacaoParlamentar.SiglaPartidoParlamentar);
+    const i = p.IdentificacaoParlamentar;
+    const s = slugPartido(i.SiglaPartidoParlamentar);
     contagem[s] = (contagem[s] ?? 0) + 1;
-    nomes.push({ nome: p.IdentificacaoParlamentar.NomeParlamentar, sigla: p.IdentificacaoParlamentar.SiglaPartidoParlamentar });
+    nomes.push({ nome: i.NomeParlamentar, sigla: i.SiglaPartidoParlamentar });
+    politicos.push({
+      id: `sen-${i.CodigoParlamentar}`, id_oficial: Number(i.CodigoParlamentar), nome: i.NomeParlamentar,
+      partido_sigla: i.SiglaPartidoParlamentar, partido_slug: s, uf: i.UfParlamentar,
+      foto_url: (i.UrlFotoParlamentar ?? "").replace(/^http:/, "https:"),
+      pagina_url: (i.UrlPaginaParlamentar ?? `https://www25.senado.leg.br/web/senadores/senador/-/perfil/${i.CodigoParlamentar}`).replace(/^http:/, "https:"),
+    });
   }
   if (arr.length < 70) throw new Error(`Senado: só ${arr.length} senadores lidos`);
-  return { bancadas: contagem, total: arr.length, nomes };
+  return { bancadas: contagem, total: arr.length, nomes, politicos };
 }

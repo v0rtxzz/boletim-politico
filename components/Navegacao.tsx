@@ -7,8 +7,8 @@ import PreferenciasTexto from "./PreferenciasTexto";
 
 const itens = [
   { href: "/", rotulo: "Hoje", Icone: IconeHoje, ativo: (p: string) => p === "/" },
-  { href: "/arquivo", rotulo: "Arquivo", Icone: IconeArquivo, ativo: (p: string) => p.startsWith("/arquivo") || p.startsWith("/boletim") },
-  { href: "/partidos", rotulo: "Partidos", Icone: IconePartidos, ativo: (p: string) => p.startsWith("/partidos") },
+  { href: "/arquivo", rotulo: "Arquivo", Icone: IconeArquivo, ativo: (p: string) => p.startsWith("/arquivo") || p.startsWith("/boletim") || p.startsWith("/retrospectiva") },
+  { href: "/politica", rotulo: "Política", Icone: IconePartidos, ativo: (p: string) => ["/politica", "/partidos", "/politicos", "/stf"].some((x) => p.startsWith(x)) },
   { href: "/glossario", rotulo: "Glossário", Icone: IconeGlossario, ativo: (p: string) => p.startsWith("/glossario") },
 ];
 

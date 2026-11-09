@@ -15,7 +15,8 @@ export default async function Partidos() {
 
   return (
     <div className="pt-4">
-      <h1 className="font-serif [font-variation-settings:'opsz'_60] text-[2.2rem] leading-none font-medium tracking-[-0.02em]">Partidos</h1>
+      <Link href="/politica" className="text-sm text-[var(--suave)] hover:text-[var(--tinta)]">Política brasileira</Link>
+      <h1 className="mt-3 font-serif [font-variation-settings:'opsz'_60] text-[2.2rem] leading-none font-medium tracking-[-0.02em]">Partidos</h1>
       <p className="mt-2 text-[var(--suave)] max-w-[44ch]">
         Notícias dos boletins em que o partido ou um filiado teve papel relevante. Todos os partidos registrados no TSE, em ordem alfabética.
       </p>

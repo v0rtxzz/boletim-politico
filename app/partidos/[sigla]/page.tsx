@@ -6,6 +6,8 @@ import { ancoraNoticia } from "@/lib/blocos";
 import { formatarData } from "@/lib/supabase";
 import SeloTipo from "@/components/SeloTipo";
 import { IconeExterno } from "@/components/Icones";
+import BuscaPoliticos from "@/components/BuscaPoliticos";
+import { politicosDoPartido } from "@/lib/politicos";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +51,8 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
   const p = await getPartido(sigla);
   if (!p) notFound();
 
-  const noticias = await noticiasDoPartido(p.slug, periodo, tema);
-  const boletins = await boletinsPorId([...new Set(noticias.map((n) => n.boletim_id))]);
+  const [noticias, membros] = await Promise.all([noticiasDoPartido(p.slug, periodo, tema), politicosDoPartido(p.slug)]);
+  const boletins = await boletinsPorId([...new Set(noticias.map((n) => n.boletim_id).filter((x): x is number => x !== null))]);
   const url = (o: { periodo?: string; tema?: string }) => {
     const q = new URLSearchParams();
     const per = o.periodo ?? periodo, tm = o.tema ?? tema;
@@ -62,7 +64,7 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
 
   return (
     <div className="pt-4">
-      <Link href="/partidos" className="text-sm text-[var(--suave)] hover:text-[var(--tinta)]">Todos os partidos</Link>
+      <nav aria-label="Caminho" className="text-sm text-[var(--suave)]"><Link href="/politica" className="hover:text-[var(--tinta)]">Política brasileira</Link> <span aria-hidden>›</span> <Link href="/partidos" className="hover:text-[var(--tinta)]">Partidos</Link></nav>
       <h1 className="mt-3 flex items-baseline gap-3">
         <span className="font-serif [font-variation-settings:'opsz'_72] text-[2.6rem] leading-none font-semibold tracking-[-0.02em]">{p.sigla}</span>
         {p.numero && <span className="num text-[var(--suave)]">nº {p.numero}</span>}
@@ -78,7 +80,20 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
         <Dado rotulo="Registro no TSE" valor={p.deferimento ? `Deferido em ${p.deferimento}` : p.registrado ? "Registrado" : "Fora da lista atual"} fonte={p.fonte_registro} quando={p.registro_atualizado_em} nomeFonte="Tribunal Superior Eleitoral" />
       </dl>
 
-      <h2 className="mt-10 text-[1.35rem] font-semibold tracking-[-0.01em]">Notícias</h2>
+      <nav aria-label="Nesta página" className="mt-6 flex gap-2 text-sm">
+        <a href="#politicos" className="rounded-full border border-[var(--fio)] px-3.5 py-2 hover:bg-[var(--acento-fundo)]">Políticos do partido</a>
+        <a href="#noticias" className="rounded-full border border-[var(--fio)] px-3.5 py-2 hover:bg-[var(--acento-fundo)]">Notícias</a>
+      </nav>
+
+      <section id="politicos" className="mt-10 scroll-mt-20" aria-labelledby="t-politicos">
+        <h2 id="t-politicos" className="text-[1.35rem] font-semibold tracking-[-0.01em]">Políticos do partido</h2>
+        <p className="mt-1 mb-4 text-sm text-[var(--suave)]">Deputados federais e senadores em exercício filiados ao {p.sigla}, segundo a Câmara e o Senado. Toque para ver o histórico.</p>
+        {membros.length === 0
+          ? <p className="text-[var(--suave)]">O partido não tem deputados federais nem senadores em exercício.</p>
+          : <BuscaPoliticos politicos={membros.map(({ id, casa, nome, partido_sigla, uf, foto_url }) => ({ id, casa, nome, partido_sigla, uf, foto_url }))} ocultarPartido />}
+      </section>
+
+      <h2 id="noticias" className="mt-12 scroll-mt-20 text-[1.35rem] font-semibold tracking-[-0.01em]">Notícias</h2>
       <p className="mt-1 text-sm text-[var(--suave)]">Em que o partido ou um filiado (na data da notícia) teve papel relevante. Da mais recente para a mais antiga.</p>
 
       <div className="mt-4 space-y-2">
@@ -99,7 +114,7 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
       ) : (
         <ol className="mt-6 space-y-4">
           {noticias.map((n) => {
-            const b = boletins.get(n.boletim_id);
+            const b = n.boletim_id !== null ? boletins.get(n.boletim_id) : undefined;
             const ancora = b ? ancoraNoticia(b.conteudo_md, b.titulo_destaque, n.trecho_titulo ?? n.titulo, n.secao) : "";
             return (
               <li key={n.id} className="rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] px-4 py-4">
@@ -126,7 +141,9 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
                   </p>
                 )}
                 <div className="mt-3 pt-3 border-t border-[var(--fio)] flex flex-col gap-1.5 text-sm">
-                  <Link href={`/boletim/${n.data}${ancora ? `#${ancora}` : ""}`} className="font-medium underline underline-offset-4">Ler no boletim de {formatarData(n.data, false)}</Link>
+                  {n.origem === "boletim"
+                    ? <Link href={`/boletim/${n.data}${ancora ? `#${ancora}` : ""}`} className="font-medium underline underline-offset-4">Ler no boletim de {formatarData(n.data, false)}</Link>
+                    : <Link href="/retrospectiva" className="font-medium underline underline-offset-4">Ver na retrospectiva de 12 meses</Link>}
                   {n.fontes.map((f, i) => (
                     <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 text-[var(--suave)] hover:text-[var(--tinta)]">
                       <IconeExterno className="mt-[3px] shrink-0" />

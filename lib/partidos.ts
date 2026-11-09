@@ -21,7 +21,7 @@ export const PERIODOS = { "7": "7 dias", "30": "30 dias", "90": "90 dias", tudo:
 
 export type NoticiaPartido = {
   id: number; data: string; titulo: string; trecho_titulo: string | null; resumo: string; secao: string | null; tipo: TipoNoticia; temas: Tema[];
-  fontes: { titulo: string; url: string }[]; boletim_id: number;
+  fontes: { titulo: string; url: string }[]; boletim_id: number | null; origem: string;
   envolvidos: { politico: string | null; papel: string; filiacao_fonte: string | null }[];
 };
 
@@ -50,7 +50,7 @@ export async function getPartido(slug: string): Promise<Partido | null> {
 export async function noticiasDoPartido(slug: string, periodo: string, tema: string): Promise<NoticiaPartido[]> {
   let q = supabase
     .from("noticias_partidos")
-    .select("politico, papel, filiacao_fonte, noticias!inner(id, data, titulo, trecho_titulo, resumo, secao, tipo, temas, fontes, boletim_id)")
+    .select("politico, papel, filiacao_fonte, noticias!inner(id, data, titulo, trecho_titulo, resumo, secao, tipo, temas, fontes, boletim_id, origem)")
     .eq("partido_slug", slug);
   if (periodo in PERIODOS && periodo !== "tudo") {
     const desde = new Date(Date.now() - Number(periodo) * 864e5).toISOString().slice(0, 10);
