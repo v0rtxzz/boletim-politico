@@ -177,3 +177,40 @@ body {
 .prosa li.com-selo { padding-left: 0; }
 .prosa li.com-selo::before { display: none; }
 .prosa li.com-selo + li.com-selo { margin-top: 0.9em; }
+
+/* ---------- Leitura em voz alta ---------- */
+.lendo {
+  background: var(--acento-fundo);
+  box-shadow: -0.6rem 0 0 var(--acento-fundo), 0.6rem 0 0 var(--acento-fundo), inset 3px 0 0 var(--acento);
+  border-radius: 6px;
+  transition: background-color 250ms ease;
+}
+.prosa li.lendo, .prosa p.lendo { padding-left: 0.6rem; margin-left: -0.6rem; }
+.prosa ul > li.lendo:not(.campo):not(.com-selo) { padding-left: 1.7rem; }
+.prosa ul > li.lendo:not(.campo):not(.com-selo)::before { left: 0.7rem; }
+tr.lendo td { background: var(--acento-fundo); }
+body.modo-voz main { padding-bottom: calc(15rem + env(safe-area-inset-bottom)); }
+body.modo-voz [data-bloco] { cursor: pointer; }
+@media (hover: hover) {
+  body.modo-voz [data-bloco]:not(.lendo):hover { background: color-mix(in oklab, var(--acento-fundo) 60%, transparent); border-radius: 6px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .player-entrada { animation: player 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+  @keyframes player { from { opacity: 0; transform: translateY(16px) scale(0.98); } }
+}
+@media (min-width: 640px) {
+  @keyframes player { from { opacity: 0; transform: translate(-50%, 16px) scale(0.98); } to { transform: translate(-50%, 0); } }
+}
+
+.barra-voz { -webkit-appearance: none; appearance: none; height: 28px; background: transparent; cursor: pointer; }
+.barra-voz::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 99px;
+  background: linear-gradient(to right, var(--acento) var(--pct), var(--fio) var(--pct));
+}
+.barra-voz::-moz-range-track { height: 4px; border-radius: 99px; background: var(--fio); }
+.barra-voz::-moz-range-progress { height: 4px; border-radius: 99px; background: var(--acento); }
+.barra-voz::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 99px;
+  background: var(--tinta); border: 3px solid var(--superficie); box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+.barra-voz::-moz-range-thumb { width: 14px; height: 14px; border-radius: 99px; background: var(--tinta); border: 3px solid var(--superficie); }

@@ -5,6 +5,7 @@ import type { Boletim } from "@/lib/supabase";
 import { formatarHora } from "@/lib/supabase";
 import { semAcento, tituloSecao } from "@/lib/texto";
 import ProgressoLeitura from "./ProgressoLeitura";
+import LeitorVoz from "./LeitorVoz";
 import { IconeExterno } from "./Icones";
 
 type Secao = { id: string; numero: string | null; nome: string; md: string };
@@ -123,6 +124,8 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
           <span><span className="num">{minutos}</span> min de leitura</span>
           {fontes.length > 0 && <a href="#fontes" className="underline underline-offset-4 decoration-[var(--fio)] hover:decoration-[var(--tinta)]"><span className="num">{fontes.length}</span> fontes</a>}
         </p>
+
+        <LeitorVoz titulo={boletim.titulo_destaque} />
       </header>
 
       {numeradas.length > 0 && (
