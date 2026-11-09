@@ -2,40 +2,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Leitor em voz alta do boletim (Web Speech API, voz pt-BR do aparelho).
- * - Lê bloco a bloco (títulos, parágrafos, itens de lista, linhas de tabela).
- * - Destaca o bloco em leitura e acompanha a rolagem.
- * - Pausar / continuar, voltar / avançar, barra para escolher o ponto,
- *   ou tocar em qualquer trecho do texto para começar dali.
+ * Leitor em voz alta do boletim.
+ * - Modo "neural": toca o áudio gerado com voz neural (continua com a tela bloqueada,
+ *   aparece na tela de bloqueio). O destaque segue o tempo de cada trecho.
+ * - Modo "aparelho": voz do próprio celular (Web Speech API), usada quando o áudio
+ *   neural não está disponível.
+ * Em ambos: pausar, velocidade, pular seção/trecho, barra de posição e tocar num trecho para ler dali.
  */
 
-type Bloco = { el: HTMLElement; partes: string[]; secao: string };
-
-const SELETOR = [
-  "#corpo-boletim section > h2",
-  "#corpo-boletim .prosa > p",
-  "#corpo-boletim .prosa > h3",
-  "#corpo-boletim .prosa > h4",
-  "#corpo-boletim .prosa > blockquote",
-  "#corpo-boletim .prosa li:not(.campo-fonte)",
-  "#corpo-boletim .prosa tr",
-].join(",");
+type T = { texto: string; secao: string };
+type Manifesto = { url: string; offsets: number[]; duracao: number };
+type Status = "verificando" | "pronto" | "gerar" | "indisponivel";
+type Modo = "neural" | "aparelho";
 
 const VELOCIDADES = [1, 1.25, 1.5, 0.85];
 
-function limpar(t: string) {
-  return t
-    .replace(/\s*·\s*/g, ", ")
-    .replace(/\s+—\s+/g, ", ")
-    .replace(/\bSTF\b/g, "S T F")
-    .replace(/\bTSE\b/g, "T S E")
-    .replace(/\bTCU\b/g, "T C U")
-    .replace(/\bEUA\b/g, "Estados Unidos")
-    .replace(/\s+/g, " ")
-    .trim();
+/** WAV silencioso minúsculo: tocado no toque para "destravar" o áudio no iPhone. */
+function silencio(): string {
+  const n = 2400, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o: number, s: string) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
 }
 
-/** Quebra textos longos em frases (alguns navegadores cortam falas longas). */
 function fatiar(t: string): string[] {
   const frases = t.match(/[^.!?;:]+[.!?;:]*\s*/g) ?? [t];
   const out: string[] = [];
@@ -48,33 +40,15 @@ function fatiar(t: string): string[] {
   return out;
 }
 
-function textoDoBloco(el: HTMLElement): string {
-  if (el.tagName === "H2") {
-    const partes = [...el.querySelectorAll("span")].map((s) => s.textContent ?? "");
-    return partes.length === 2 ? `Seção ${partes[0]}. ${partes[1]}.` : `${el.textContent}.`;
-  }
-  if (el.tagName === "TR") {
-    return [...el.children].map((c) => c.textContent?.trim()).filter(Boolean).join(", ") + ".";
-  }
-  // Rótulos ("O que aconteceu", "Confirmado"…) ganham uma pausa antes do texto.
-  const rotulo = el.querySelector<HTMLElement>(":scope > .rotulo, :scope > .selo, :scope > p > .rotulo, :scope > p > .selo");
-  let t = el.textContent ?? "";
-  if (rotulo?.textContent) {
-    const r = rotulo.textContent.trim();
-    t = `${r}. ${t.replace(r, "").trim()}`;
-  }
-  return /[.!?:]$/.test(t.trim()) ? t : `${t}.`;
-}
-
 function escolherVoz(): SpeechSynthesisVoice | null {
   const vozes = window.speechSynthesis.getVoices();
   const pt = vozes.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith("pt-br"));
-  const pref = ["luciana", "francisca", "thalita", "google português do brasil", "microsoft francisca", "felipe"];
+  const pref = ["luciana (aprimorada)", "luciana (premium)", "luciana", "francisca", "thalita", "google português do brasil", "felipe"];
   for (const p of pref) {
     const v = pt.find((x) => x.name.toLowerCase().includes(p));
     if (v) return v;
   }
-  return pt.find((v) => v.localService) ?? pt[0] ?? vozes.find((v) => v.lang.toLowerCase().startsWith("pt")) ?? null;
+  return pt[0] ?? null;
 }
 
 const Icone = ({ d, size = 22 }: { d: string; size?: number }) => (
@@ -87,140 +61,240 @@ const PROXIMO = "M16 5h2v14h-2zM5 6.2v11.6a.8.8 0 0 0 1.25.66l8.15-5.8a.8.8 0 0 
 const FECHAR = "M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z";
 const FONE = "M12 3a8 8 0 0 0-8 8v6a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H6v-2a6 6 0 1 1 12 0v2h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-6a8 8 0 0 0-8-8z";
 
-export default function LeitorVoz({ titulo }: { titulo: string }) {
-  const [suportado, setSuportado] = useState(true);
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[] }) {
+  const total = trechos.length;
+  const [status, setStatus] = useState<Status>("verificando");
+  const [manifesto, setManifesto] = useState<Manifesto | null>(null);
+  const [modo, setModo] = useState<Modo>("neural");
+  const [gerando, setGerando] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [tocando, setTocando] = useState(false);
   const [indice, setIndice] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [secao, setSecao] = useState("");
   const [vel, setVel] = useState(1);
+  const [aviso, setAviso] = useState("");
+  const [tempo, setTempo] = useState(0);
 
-  const blocos = useRef<Bloco[]>([]);
-  const geracao = useRef(0); // invalida callbacks de falas canceladas
+  const audio = useRef<HTMLAudioElement | null>(null);
   const idxRef = useRef(0);
   const velRef = useRef(1);
+  const modoRef = useRef<Modo>("neural");
+  const geracao = useRef(0);
   const voz = useRef<SpeechSynthesisVoice | null>(null);
-  const comecou = useRef(false); // alguma fala já tocou nesta sessão?
-  const [aviso, setAviso] = useState("");
+  const comecou = useRef(false);
+  const silencioUrl = useRef("");
 
-  // Monta a lista de blocos a partir do texto renderizado.
+  useEffect(() => { modoRef.current = modo; }, [modo]);
+
+  // Descobre se já há áudio neural pronto para este boletim.
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) { setSuportado(false); return; }
-    // Itens de lista aninhados são lidos junto com o item pai.
-    const els = [...document.querySelectorAll<HTMLElement>(SELETOR)].filter(
-      (el) => !(el.tagName === "LI" && el.parentElement?.closest("li")),
-    );
-    let secaoAtual = "Abertura";
-    const lista: Bloco[] = [{ el: document.querySelector("article h1") as HTMLElement, partes: fatiar(limpar(`Boletim Político Diário. ${titulo}.`)), secao: "Abertura" }];
-    for (const el of els) {
-      if (el.tagName === "H2") secaoAtual = el.textContent?.replace(/^\d+\s*/, "").trim() ?? secaoAtual;
-      const txt = limpar(textoDoBloco(el));
-      if (!txt || txt === ".") continue;
-      lista.push({ el, partes: fatiar(txt), secao: secaoAtual });
+    let vivo = true;
+    fetch(`/api/audio/${data}`).then((r) => r.json()).then((j) => {
+      if (!vivo) return;
+      if (j.status === "pronto") { setManifesto(j); setStatus("pronto"); }
+      else setStatus(j.status === "gerar" ? "gerar" : "indisponivel");
+    }).catch(() => vivo && setStatus("indisponivel"));
+    const a = new Audio();
+    a.preload = "none";
+    audio.current = a;
+    silencioUrl.current = silencio();
+    let carregar: (() => void) | null = null;
+    if ("speechSynthesis" in window) {
+      carregar = () => { voz.current = escolherVoz(); };
+      carregar();
+      window.speechSynthesis.addEventListener?.("voiceschanged", carregar);
     }
-    blocos.current = lista.filter((b) => b.el);
-    blocos.current.forEach((b, i) => { b.el.dataset.bloco = String(i); });
-    setTotal(blocos.current.length);
-    setSecao(blocos.current[0]?.secao ?? "");
-
-    const carregar = () => { voz.current = escolherVoz(); };
-    carregar();
-    window.speechSynthesis.addEventListener?.("voiceschanged", carregar);
     return () => {
-      window.speechSynthesis.removeEventListener?.("voiceschanged", carregar);
+      vivo = false;
+      a.pause(); a.removeAttribute("src");
       geracao.current++;
-      window.speechSynthesis.cancel();
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        if (carregar) window.speechSynthesis.removeEventListener?.("voiceschanged", carregar);
+      }
       document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
     };
-  }, [titulo]);
+  }, [data]);
 
-  const marcar = useCallback((i: number) => {
+  const marcar = useCallback((i: number, rolar = true) => {
+    if (i === idxRef.current && document.querySelector(".lendo")) return;
     document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
-    const b = blocos.current[i];
-    if (!b) return;
-    b.el.classList.add("lendo");
+    idxRef.current = i;
     setIndice(i);
-    setSecao(b.secao);
-    const r = b.el.getBoundingClientRect();
-    const topoLivre = 110, baseLivre = window.innerHeight - 200;
-    if (r.top < topoLivre || r.bottom > baseLivre) {
+    const el = document.querySelector<HTMLElement>(`[data-bloco="${i}"]`);
+    if (!el) return;
+    el.classList.add("lendo");
+    if (!rolar) return;
+    const r = el.getBoundingClientRect();
+    if (r.top < 110 || r.bottom > window.innerHeight - 220) {
       const reduzido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollTo({ top: window.scrollY + r.top - window.innerHeight * 0.3, behavior: reduzido ? "auto" : "smooth" });
     }
   }, []);
 
+  // ---------- Modo neural (arquivo de áudio) ----------
+  useEffect(() => {
+    const a = audio.current;
+    if (!a || !manifesto) return;
+    const { offsets } = manifesto;
+    const onTime = () => {
+      if (!a.src || a.src.startsWith("blob:")) return;
+      setTempo(a.currentTime);
+      const t = a.currentTime + 0.08;
+      let lo = 0, hi = offsets.length - 1;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (offsets[m] <= t) lo = m; else hi = m - 1; }
+      marcar(lo);
+    };
+    const onPlay = () => { if (!a.src.startsWith("blob:")) setTocando(true); };
+    const onPause = () => setTocando(false);
+    const onEnded = () => { if (a.src.startsWith("blob:")) return; setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); };
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("play", onPlay);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("ended", onEnded);
+    return () => {
+      a.removeEventListener("timeupdate", onTime); a.removeEventListener("play", onPlay);
+      a.removeEventListener("pause", onPause); a.removeEventListener("ended", onEnded);
+    };
+  }, [manifesto, marcar]);
+
+  const tocarNeural = useCallback((m: Manifesto, i?: number) => {
+    const a = audio.current!;
+    if (a.src !== m.url) { a.src = m.url; a.preload = "auto"; }
+    a.playbackRate = velRef.current;
+    if (i !== undefined) {
+      const ir = () => { a.currentTime = m.offsets[i] ?? 0; };
+      if (a.readyState >= 1) ir(); else a.addEventListener("loadedmetadata", ir, { once: true });
+      marcar(i);
+    }
+    a.play().catch((e) => setAviso(`Não consegui tocar o áudio (${e?.name ?? "erro"}). Toque em reproduzir de novo.`));
+    if ("mediaSession" in navigator) {
+      const [y, mo, d] = data.split("-");
+      navigator.mediaSession.metadata = new MediaMetadata({ title: `Boletim de ${d}/${mo}/${y}`, artist: "Boletim Político Diário", artwork: [{ src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }] });
+    }
+  }, [data, marcar]);
+
+  // ---------- Modo aparelho (Web Speech) ----------
   const falar = useCallback((i: number, parte = 0) => {
     const synth = window.speechSynthesis;
     const g = ++geracao.current;
-    // Só cancela se houver algo falando: no Safari, cancel() seguido de speak() pode descartar a fala.
     if (synth.speaking || synth.pending) synth.cancel();
-    const b = blocos.current[i];
-    if (!b) { setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); return; }
-    idxRef.current = i;
+    const t = trechos[i];
+    if (!t) { setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); return; }
     marcar(i);
+    const partes = fatiar(t.texto);
     if (!voz.current) voz.current = escolherVoz();
-    const u = new SpeechSynthesisUtterance(b.partes[parte]);
+    const u = new SpeechSynthesisUtterance(partes[parte]);
     u.lang = "pt-BR";
     if (voz.current) u.voice = voz.current;
     u.rate = velRef.current;
     u.onstart = () => { if (g === geracao.current) { comecou.current = true; setAviso(""); } };
-    u.onend = () => {
-      if (g !== geracao.current) return;
-      if (parte + 1 < b.partes.length) falar(i, parte + 1);
-      else falar(i + 1, 0);
-    };
+    u.onend = () => { if (g === geracao.current) { if (parte + 1 < partes.length) falar(i, parte + 1); else falar(i + 1, 0); } };
     u.onerror = (e) => {
       if (g !== geracao.current || e.error === "interrupted" || e.error === "canceled") return;
       setTocando(false);
-      setAviso(e.error === "not-allowed"
-        ? "O navegador bloqueou o áudio. Toque no botão de reproduzir para tentar de novo."
-        : `A voz falhou (${e.error}). Toque no botão de reproduzir para tentar de novo.`);
+      setAviso(`A voz falhou (${e.error}). Toque em reproduzir para tentar de novo.`);
     };
     setTocando(true);
-    // speak() precisa acontecer no mesmo instante do toque: o iPhone recusa fala iniciada depois.
     synth.speak(u);
     if (synth.paused) synth.resume();
-    // Se nada começar em 4 s, avisa em vez de ficar mudo sem explicação.
-    if (!comecou.current) {
-      setTimeout(() => {
-        if (g === geracao.current && !comecou.current) {
-          setAviso("Nenhum som começou. No iPhone, confira se a chave lateral não está no modo silencioso e se o volume está alto.");
-        }
-      }, 4000);
+    if (!comecou.current) setTimeout(() => {
+      if (g === geracao.current && !comecou.current) setAviso("Nenhum som começou. No iPhone, confira se a chave lateral não está no modo silencioso e o volume.");
+    }, 4000);
+  }, [trechos, marcar]);
+
+  const pararAparelho = () => { geracao.current++; if ("speechSynthesis" in window) window.speechSynthesis.cancel(); };
+
+  // ---------- Ações ----------
+  const usarAparelho = (i = idxRef.current) => {
+    audio.current?.pause();
+    setModo("aparelho"); modoRef.current = "aparelho";
+    setGerando(false);
+    if ("speechSynthesis" in window) falar(i);
+    else setAviso("Este navegador não tem leitura em voz alta.");
+  };
+
+  const iniciar = async () => {
+    setAberto(true);
+    setAviso("");
+    if (status === "pronto" && manifesto) { setModo("neural"); tocarNeural(manifesto, idxRef.current); return; }
+    if (status !== "gerar") { usarAparelho(); return; }
+    // Destrava o áudio dentro do toque; o arquivo chega depois.
+    const a = audio.current!;
+    a.src = silencioUrl.current;
+    a.play().catch(() => {});
+    setModo("neural"); modoRef.current = "neural";
+    setGerando(true);
+    try {
+      const r = await fetch(`/api/audio/${data}`, { method: "POST" });
+      const j = await r.json();
+      if (j.status !== "pronto") throw new Error(j.erro ?? j.status);
+      setManifesto(j); setStatus("pronto"); setGerando(false);
+      if (modoRef.current === "neural") tocarNeural(j, idxRef.current);
+    } catch (e) {
+      console.error(e);
+      setStatus("indisponivel");
+      if (modoRef.current === "neural") {
+        setAviso("Não consegui preparar a voz natural agora. Usando a voz do aparelho.");
+        usarAparelho();
+      } else setGerando(false);
     }
-  }, [marcar]);
+  };
 
-  const pausar = useCallback(() => {
-    geracao.current++;
-    window.speechSynthesis.cancel();
-    setTocando(false);
-  }, []);
+  const pausar = () => { if (modo === "neural") audio.current?.pause(); else { pararAparelho(); setTocando(false); } };
+  const continuar = () => {
+    if (modo === "neural" && manifesto) tocarNeural(manifesto);
+    else if (modo === "aparelho") falar(idxRef.current);
+  };
+  const alternar = () => (tocando ? pausar() : continuar());
 
-  const iniciar = () => { setAberto(true); falar(idxRef.current); };
-  const alternar = () => (tocando ? pausar() : falar(idxRef.current));
-  const irPara = (i: number) => {
+  const irPara = useCallback((i: number) => {
     const alvo = Math.max(0, Math.min(total - 1, i));
-    idxRef.current = alvo;
-    if (tocando) falar(alvo); else marcar(alvo);
-  };
-  const proximaSecao = (dir: 1 | -1) => {
-    const atual = blocos.current[idxRef.current]?.secao;
+    if (modo === "neural" && manifesto) {
+      audio.current!.currentTime = manifesto.offsets[alvo] ?? 0;
+      marcar(alvo);
+    } else if (modo === "aparelho" && tocando) falar(alvo);
+    else marcar(alvo);
+  }, [modo, manifesto, tocando, total, marcar, falar]);
+
+  const pularSecao = useCallback((dir: 1 | -1) => {
+    const atual = trechos[idxRef.current]?.secao;
     let i = idxRef.current + dir;
-    while (i > 0 && i < total && blocos.current[i].secao === atual) i += dir;
-    if (dir === -1) { const s = blocos.current[Math.max(i, 0)]?.secao; while (i > 0 && blocos.current[i - 1].secao === s) i--; }
+    while (i > 0 && i < total && trechos[i].secao === atual) i += dir;
+    if (dir === -1) { const s = trechos[Math.max(i, 0)]?.secao; while (i > 0 && trechos[i - 1].secao === s) i--; }
     irPara(i);
-  };
+  }, [trechos, total, irPara]);
+
   const fechar = () => {
-    pausar();
+    audio.current?.pause();
+    pararAparelho();
+    setTocando(false);
     setAberto(false);
     document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo"));
   };
   const trocarVel = () => {
     const n = VELOCIDADES[(VELOCIDADES.indexOf(vel) + 1) % VELOCIDADES.length];
     setVel(n); velRef.current = n;
-    if (tocando) falar(idxRef.current);
+    if (modo === "neural" && audio.current) audio.current.playbackRate = n;
+    else if (tocando) falar(idxRef.current);
   };
+
+  // Controles na tela de bloqueio / fones.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || modo !== "neural") return;
+    const ms = navigator.mediaSession;
+    const acoes: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ["play", () => { audio.current?.play(); }],
+      ["pause", () => audio.current?.pause()],
+      ["previoustrack", () => pularSecao(-1)],
+      ["nexttrack", () => pularSecao(1)],
+      ["seekbackward", () => { if (audio.current) audio.current.currentTime -= 15; }],
+      ["seekforward", () => { if (audio.current) audio.current.currentTime += 15; }],
+    ];
+    for (const [a, h] of acoes) { try { ms.setActionHandler(a, h); } catch {} }
+    return () => { for (const [a] of acoes) { try { ms.setActionHandler(a, null); } catch {} } };
+  }, [modo, pularSecao]);
 
   // Com o leitor aberto, tocar num trecho do texto começa a ler dali.
   useEffect(() => {
@@ -228,74 +302,94 @@ export default function LeitorVoz({ titulo }: { titulo: string }) {
     document.body.classList.add("modo-voz");
     const onClick = (e: MouseEvent) => {
       const alvo = e.target as HTMLElement;
-      if (alvo.closest("a, button, summary, input")) return;
+      if (alvo.closest("a, button, summary, input, [role=region]")) return;
       const el = alvo.closest<HTMLElement>("[data-bloco]");
       if (!el) return;
-      falar(Number(el.dataset.bloco));
+      const i = Number(el.dataset.bloco);
+      if (modo === "neural" && manifesto) tocarNeural(manifesto, i);
+      else if (modo === "aparelho") falar(i);
     };
     document.addEventListener("click", onClick);
     return () => { document.removeEventListener("click", onClick); document.body.classList.remove("modo-voz"); };
-  }, [aberto, falar]);
-
-  if (!suportado) return null;
+  }, [aberto, modo, manifesto, falar, tocarNeural]);
 
   if (!aberto) {
     return (
-      <button type="button" onClick={iniciar}
-        className="mt-5 inline-flex items-center gap-2.5 rounded-full bg-[var(--tinta)] text-[var(--papel)] pl-4 pr-5 py-3 font-medium cursor-pointer active:scale-[0.97] transition-transform">
-        <Icone d={FONE} size={20} />
-        Ouvir o boletim
-      </button>
+      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <button type="button" onClick={iniciar}
+          className="inline-flex items-center gap-2.5 rounded-full bg-[var(--tinta)] text-[var(--papel)] pl-4 pr-5 py-3 font-medium cursor-pointer active:scale-[0.97] transition-transform">
+          <Icone d={FONE} size={20} />
+          Ouvir o boletim
+        </button>
+        {status === "pronto" && manifesto && (
+          <span className="text-sm text-[var(--suave)]">Voz natural, <span className="num">{fmt(manifesto.duracao)}</span></span>
+        )}
+      </div>
     );
   }
 
+  const secao = trechos[indice]?.secao ?? "";
   const pct = total > 1 ? (indice / (total - 1)) * 100 : 0;
+  const estado = gerando ? "Preparando a voz natural. Na 1ª vez de cada boletim leva até 1 minuto." : tocando ? "Lendo" : "Pausado";
+
   return (
-    <>
-      <div role="region" aria-label="Leitura em voz alta"
-        className="fixed z-40 inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[40rem] rounded-2xl bg-[var(--superficie)] shadow-[0_12px_40px_-8px_rgb(0_0_0/0.35)] border border-[var(--fio)] px-4 pt-3 pb-3 player-entrada">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[0.95rem] font-semibold truncate">{secao}</p>
-            {aviso && <p role="alert" className="text-xs font-medium text-[var(--tinta)] mb-0.5">{aviso}</p>}
-            <p className="text-xs text-[var(--suave)]">
-              {tocando ? "Lendo" : "Pausado"} <span className="num">{indice + 1}</span> de <span className="num">{total}</span>. Toque num trecho para ler dali.
-            </p>
-          </div>
-          <button type="button" onClick={fechar} aria-label="Fechar leitor" className="w-10 h-10 -mr-2 grid place-items-center rounded-full text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer">
-            <Icone d={FECHAR} size={20} />
+    <div role="region" aria-label="Leitura em voz alta"
+      className="fixed z-40 inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[40rem] rounded-2xl bg-[var(--superficie)] shadow-[0_12px_40px_-8px_rgb(0_0_0/0.35)] border border-[var(--fio)] px-4 pt-3 pb-3 player-entrada">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {aviso && <p role="alert" className="text-xs font-medium mb-0.5">{aviso}</p>}
+          <p className="text-[0.95rem] font-semibold truncate">{secao}</p>
+          <p className="text-xs text-[var(--suave)]">
+            {estado}
+            {!gerando && (
+              <>
+                {" "}<span className="num">{indice + 1}</span> de <span className="num">{total}</span>
+                {modo === "neural" && manifesto && <>, <span className="num">{fmt(tempo)}</span> de <span className="num">{fmt(manifesto.duracao)}</span></>}
+                {modo === "aparelho" && <>, voz do aparelho</>}
+              </>
+            )}
+          </p>
+          {gerando && (
+            <button type="button" onClick={() => usarAparelho()} className="mt-1 text-xs underline underline-offset-4 cursor-pointer">
+              Ouvir agora com a voz do aparelho
+            </button>
+          )}
+        </div>
+        <button type="button" onClick={fechar} aria-label="Fechar leitor" className="w-10 h-10 -mr-2 grid place-items-center rounded-full text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer">
+          <Icone d={FECHAR} size={20} />
+        </button>
+      </div>
+
+      <label className="sr-only" htmlFor="posicao-voz">Ponto da leitura</label>
+      <input id="posicao-voz" type="range" min={0} max={Math.max(total - 1, 0)} value={indice} disabled={gerando}
+        onChange={(e) => irPara(Number(e.target.value))}
+        aria-valuetext={`${secao}, trecho ${indice + 1} de ${total}`}
+        className="barra-voz mt-2 w-full disabled:opacity-40" style={{ ["--pct" as string]: `${pct}%` }} />
+
+      <div className="mt-1 flex items-center justify-between">
+        <button type="button" onClick={trocarVel} aria-label={`Velocidade ${vel}x, tocar para mudar`}
+          className="w-14 h-11 rounded-xl text-sm font-semibold num hover:bg-[var(--acento-fundo)] cursor-pointer">
+          {String(vel).replace(".", ",")}×
+        </button>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => pularSecao(-1)} aria-label="Seção anterior" className="w-11 h-11 grid place-items-center rounded-full hover:bg-[var(--acento-fundo)] cursor-pointer">
+            <Icone d={ANTERIOR} />
+          </button>
+          <button type="button" onClick={alternar} disabled={gerando} aria-label={tocando ? "Pausar" : "Continuar"}
+            className="w-14 h-14 grid place-items-center rounded-full bg-[var(--tinta)] text-[var(--papel)] cursor-pointer active:scale-95 transition-transform disabled:opacity-50">
+            {gerando
+              ? <span className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin motion-reduce:animate-none" aria-hidden />
+              : <Icone d={tocando ? PAUSA : PLAY} size={26} />}
+          </button>
+          <button type="button" onClick={() => pularSecao(1)} aria-label="Próxima seção" className="w-11 h-11 grid place-items-center rounded-full hover:bg-[var(--acento-fundo)] cursor-pointer">
+            <Icone d={PROXIMO} />
           </button>
         </div>
-
-        <label className="sr-only" htmlFor="posicao-voz">Ponto da leitura</label>
-        <input id="posicao-voz" type="range" min={0} max={Math.max(total - 1, 0)} value={indice}
-          onChange={(e) => irPara(Number(e.target.value))}
-          aria-valuetext={`${secao}, trecho ${indice + 1} de ${total}`}
-          className="barra-voz mt-2 w-full" style={{ ["--pct" as string]: `${pct}%` }} />
-
-        <div className="mt-1 flex items-center justify-between">
-          <button type="button" onClick={trocarVel} aria-label={`Velocidade ${vel}x, tocar para mudar`}
-            className="w-14 h-11 rounded-xl text-sm font-semibold num hover:bg-[var(--acento-fundo)] cursor-pointer">
-            {String(vel).replace(".", ",")}×
-          </button>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={() => proximaSecao(-1)} aria-label="Seção anterior" className="w-11 h-11 grid place-items-center rounded-full hover:bg-[var(--acento-fundo)] cursor-pointer">
-              <Icone d={ANTERIOR} />
-            </button>
-            <button type="button" onClick={alternar} aria-label={tocando ? "Pausar" : "Continuar"}
-              className="w-14 h-14 grid place-items-center rounded-full bg-[var(--tinta)] text-[var(--papel)] cursor-pointer active:scale-95 transition-transform">
-              <Icone d={tocando ? PAUSA : PLAY} size={26} />
-            </button>
-            <button type="button" onClick={() => proximaSecao(1)} aria-label="Próxima seção" className="w-11 h-11 grid place-items-center rounded-full hover:bg-[var(--acento-fundo)] cursor-pointer">
-              <Icone d={PROXIMO} />
-            </button>
-          </div>
-          <div className="flex">
-            <button type="button" onClick={() => irPara(indice - 1)} aria-label="Trecho anterior" className="w-10 h-11 rounded-xl text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer text-lg">‹</button>
-            <button type="button" onClick={() => irPara(indice + 1)} aria-label="Próximo trecho" className="w-10 h-11 rounded-xl text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer text-lg">›</button>
-          </div>
+        <div className="flex">
+          <button type="button" onClick={() => irPara(indice - 1)} aria-label="Trecho anterior" className="w-10 h-11 rounded-xl text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer text-lg">‹</button>
+          <button type="button" onClick={() => irPara(indice + 1)} aria-label="Próximo trecho" className="w-10 h-11 rounded-xl text-[var(--suave)] hover:bg-[var(--acento-fundo)] cursor-pointer text-lg">›</button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

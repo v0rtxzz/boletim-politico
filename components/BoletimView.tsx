@@ -3,28 +3,11 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Boletim } from "@/lib/supabase";
 import { formatarHora } from "@/lib/supabase";
-import { semAcento, tituloSecao } from "@/lib/texto";
+import { semAcento } from "@/lib/texto";
+import { dividirBoletim } from "@/lib/blocos";
 import ProgressoLeitura from "./ProgressoLeitura";
 import LeitorVoz from "./LeitorVoz";
 import { IconeExterno } from "./Icones";
-
-type Secao = { id: string; numero: string | null; nome: string; md: string };
-
-/** Separa cabeçalho e seções (## ...) do Markdown do boletim. */
-function dividir(md: string) {
-  const horario =
-    md.match(/hor[aá]rio:\**\s*([0-2]?\d[:h][0-5]\d)/i)?.[1]?.replace("h", ":") ?? "06:00";
-  const partes = md.split(/^(?=##\s)/m);
-  const secoes: Secao[] = [];
-  for (const parte of partes) {
-    const m = parte.match(/^##\s+(.+)\n?/);
-    if (!m) continue;
-    const t = tituloSecao(m[1]);
-    secoes.push({ ...t, md: parte.slice(m[0].length) });
-  }
-  const palavras = md.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").split(/\s+/).length;
-  return { horario, secoes, minutos: Math.max(1, Math.round(palavras / 220)) };
-}
 
 const ROTULOS_CAMPO = ["o que aconteceu", "contexto", "consequencia", "consequencias", "fonte", "fontes", "impacto"];
 const SELOS: Record<string, string> = {
@@ -52,33 +35,47 @@ function primeiroForte(no: unknown): string | null {
   return null;
 }
 
-const componentes: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
-  strong: ({ node, children }) => {
-    const k = chave(textoHast(node));
-    if (ROTULOS_CAMPO.includes(k)) return <span className="rotulo">{textoHast(node).replace(/:\s*$/, "")}</span>;
-    if (SELOS[k]) return <span className={`selo ${SELOS[k]}`}>{textoHast(node).replace(/:\s*$/, "")}</span>;
-    return <strong>{children}</strong>;
-  },
-  li: ({ node, children }) => {
-    const forte = primeiroForte(node);
-    const k = forte ? chave(forte) : "";
-    const ehCampo = ROTULOS_CAMPO.includes(k);
-    const cls = ehCampo
-      ? `campo${k.startsWith("fonte") ? " campo-fonte" : ""}`
-      : SELOS[k] ? "com-selo" : undefined;
-    return <li className={cls}>{children}</li>;
-  },
-  table: ({ children }) => (
-    <div className="tabela">
-      <table>{children}</table>
-    </div>
-  ),
+type Mapa = Record<number, number>;
+const bloco = (mapa: Mapa, node: unknown) => {
+  const off = (node as { position?: { start?: { offset?: number } } })?.position?.start?.offset;
+  return off !== undefined && mapa[off] !== undefined ? mapa[off] : undefined;
 };
+
+/** Componentes do Markdown; cada trecho legível recebe data-bloco (índice na leitura em voz). */
+function criarComponentes(mapa: Mapa): Components {
+  return {
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    ),
+    strong: ({ node, children }) => {
+      const k = chave(textoHast(node));
+      if (ROTULOS_CAMPO.includes(k)) return <span className="rotulo">{textoHast(node).replace(/:\s*$/, "")}</span>;
+      if (SELOS[k]) return <span className={`selo ${SELOS[k]}`}>{textoHast(node).replace(/:\s*$/, "")}</span>;
+      return <strong>{children}</strong>;
+    },
+    li: ({ node, children }) => {
+      const forte = primeiroForte(node);
+      const k = forte ? chave(forte) : "";
+      const ehCampo = ROTULOS_CAMPO.includes(k);
+      const cls = ehCampo
+        ? `campo${k.startsWith("fonte") ? " campo-fonte" : ""}`
+        : SELOS[k] ? "com-selo" : undefined;
+      return <li className={cls} data-bloco={bloco(mapa, node)}>{children}</li>;
+    },
+    p: ({ node, children }) => <p data-bloco={bloco(mapa, node)}>{children}</p>,
+    h3: ({ node, children }) => <h3 data-bloco={bloco(mapa, node)}>{children}</h3>,
+    h4: ({ node, children }) => <h4 data-bloco={bloco(mapa, node)}>{children}</h4>,
+    blockquote: ({ node, children }) => <blockquote data-bloco={bloco(mapa, node)}>{children}</blockquote>,
+    tr: ({ node, children }) => <tr data-bloco={bloco(mapa, node)}>{children}</tr>,
+    table: ({ children }) => (
+      <div className="tabela">
+        <table>{children}</table>
+      </div>
+    ),
+  };
+}
 
 function formatarDiaPartes(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -92,7 +89,7 @@ function formatarDiaPartes(iso: string) {
 }
 
 export default function BoletimView({ boletim, atual = false }: { boletim: Boletim; atual?: boolean }) {
-  const { horario, secoes, minutos } = dividir(boletim.conteudo_md);
+  const { horario, secoes, minutos, trechos, mapas, titulos } = dividirBoletim(boletim.conteudo_md, boletim.titulo_destaque);
   const fontes = Array.isArray(boletim.fontes) ? boletim.fontes : [];
   const { dia, semana, mesAno } = formatarDiaPartes(boletim.data);
   const numeradas = secoes.filter((s) => s.numero);
@@ -115,7 +112,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
           </div>
         </div>
 
-        <h1 className="entrada-resto mt-7 font-serif [font-variation-settings:'opsz'_60] text-[2rem] sm:text-[2.4rem] leading-[1.08] font-medium tracking-[-0.02em] text-balance">
+        <h1 data-bloco={0} className="entrada-resto mt-7 font-serif [font-variation-settings:'opsz'_60] text-[2rem] sm:text-[2.4rem] leading-[1.08] font-medium tracking-[-0.02em] text-balance">
           {boletim.titulo_destaque}
         </h1>
 
@@ -125,7 +122,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
           {fontes.length > 0 && <a href="#fontes" className="underline underline-offset-4 decoration-[var(--fio)] hover:decoration-[var(--tinta)]"><span className="num">{fontes.length}</span> fontes</a>}
         </p>
 
-        <LeitorVoz titulo={boletim.titulo_destaque} />
+        <LeitorVoz data={boletim.data} trechos={trechos.map(({ texto, secao }) => ({ texto, secao }))} />
       </header>
 
       {numeradas.length > 0 && (
@@ -144,7 +141,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
       )}
 
       <div id="corpo-boletim">
-        {secoes.map((s) => {
+        {secoes.map((s, i) => {
           const analise = semAcento(s.nome).startsWith("analise do dia");
           const termos = semAcento(s.nome).startsWith("termos explicados");
           const resumo = semAcento(s.nome).startsWith("resumo do dia");
@@ -155,7 +152,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
                 : termos
                   ? "mt-14 pt-8 border-t border-[var(--fio)]"
                   : "mt-14"}>
-              <h2 id={`t-${s.id}`} className="flex items-baseline gap-3">
+              <h2 id={`t-${s.id}`} data-bloco={titulos[i]} className="flex items-baseline gap-3">
                 {s.numero && <span className="num font-serif [font-variation-settings:'opsz'_72] text-[2.6rem] leading-none font-light text-[var(--suave)]">{s.numero}</span>}
                 <span className={termos ? "text-lg font-semibold" : "text-[1.35rem] font-semibold tracking-[-0.01em]"}>{s.nome}</span>
               </h2>
@@ -163,7 +160,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
                 <p className="mt-3 text-sm text-[var(--suave)]">Interpretação do analista, com base nos fatos relatados acima.</p>
               )}
               <div className={`prosa mt-4 ${resumo ? "resumo" : ""} ${termos ? "text-[1.05rem]" : ""}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentes}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={criarComponentes(mapas[i])}>
                   {s.md}
                 </ReactMarkdown>
               </div>
