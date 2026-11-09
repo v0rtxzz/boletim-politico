@@ -9,7 +9,8 @@ import ProgressoLeitura from "./ProgressoLeitura";
 import LeitorVoz from "./LeitorVoz";
 import { IconeExterno } from "./Icones";
 import BotaoCompartilhar from "./BotaoCompartilhar";
-import ContinuarLeitura from "./ContinuarLeitura";
+import RastreioLeitura from "./RastreioLeitura";
+import IndiceLeitura from "./IndiceLeitura";
 
 const ROTULOS_CAMPO = ["o que aconteceu", "contexto", "consequencia", "consequencias", "fonte", "fontes", "impacto"];
 const SELOS: Record<string, string> = {
@@ -103,10 +104,14 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
   const fontes = Array.isArray(boletim.fontes) ? boletim.fontes : [];
   const { dia, semana, mesAno } = formatarDiaPartes(boletim.data);
   const numeradas = secoes.filter((s) => s.numero);
+  // Para o índice de progresso: onde cada seção começa e termina (em trechos).
+  const indice = secoes
+    .map((s, i) => ({ id: s.id, numero: s.numero, nome: s.nome, inicio: titulos[i], fim: (titulos[i + 1] ?? trechos.length) - 1 }))
+    .filter((s) => s.numero);
 
   return (
     <article data-data={boletim.data}>
-      <ContinuarLeitura data={boletim.data} />
+      <RastreioLeitura data={boletim.data} titulo={boletim.titulo_destaque} total={trechos.length} />
       <ProgressoLeitura secoes={numeradas.map(({ id, numero, nome }) => ({ id, numero, nome }))} />
 
       <header className="pt-4 pb-8">
@@ -136,20 +141,7 @@ export default function BoletimView({ boletim, atual = false }: { boletim: Bolet
         <LeitorVoz data={boletim.data} trechos={trechos.map(({ texto, secao }) => ({ texto, secao }))} />
       </header>
 
-      {numeradas.length > 0 && (
-        <nav id="indice" aria-label="Seções do boletim" className="rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] p-2">
-          <ol>
-            {numeradas.map((s) => (
-              <li key={s.id}>
-                <a href={`#${s.id}`} className="flex items-baseline gap-4 rounded-xl px-3 py-3 hover:bg-[var(--acento-fundo)] transition-colors">
-                  <span className="num w-4 text-sm text-[var(--suave)]">{s.numero}</span>
-                  <span className="text-[1.02rem]">{s.nome}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      )}
+      {indice.length > 0 && <IndiceLeitura data={boletim.data} secoes={indice} total={trechos.length} />}
 
       <div id="corpo-boletim">
         {secoes.map((s, i) => {

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listarBoletins } from "@/lib/supabase";
 import { IconeBusca } from "@/components/Icones";
+import ContinuarLendo from "@/components/ContinuarLendo";
+import SeloLeitura from "@/components/SeloLeitura";
 
 export const metadata: Metadata = { title: "Arquivo" };
 export const dynamic = "force-dynamic";
@@ -41,6 +43,8 @@ export default async function Arquivo({ searchParams }: Props) {
           className="w-full rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] pl-12 pr-4 py-3.5 text-base outline-none placeholder:text-[var(--suave)] focus-visible:outline-2 focus-visible:outline-[var(--acento)]" />
       </form>
 
+      {!q && <ContinuarLendo />}
+
       {q && (
         <p className="mt-4 text-sm text-[var(--suave)]">
           <span className="num">{boletins.length}</span> {boletins.length === 1 ? "edição menciona" : "edições mencionam"} “{q}”.{" "}
@@ -65,7 +69,10 @@ export default async function Arquivo({ searchParams }: Props) {
                     <Link href={`/boletim/${b.data}`} className="flex gap-4 px-4 py-4 hover:bg-[var(--acento-fundo)] transition-colors">
                       <span className="num font-serif [font-variation-settings:'opsz'_72] text-[2.3rem] leading-[0.9] font-light w-12 shrink-0">{p.dia}</span>
                       <span className="min-w-0">
-                        <span className="block text-sm text-[var(--suave)] primeira-maiuscula">{p.semana}</span>
+                        <span className="flex items-center justify-between gap-3 text-sm text-[var(--suave)]">
+                          <span className="primeira-maiuscula">{p.semana}</span>
+                          <SeloLeitura data={b.data} />
+                        </span>
                         <span className="block mt-0.5 font-serif text-[1.12rem] leading-snug text-pretty">{b.titulo_destaque}</span>
                       </span>
                     </Link>
