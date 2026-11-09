@@ -5,7 +5,8 @@
  * Nada é estimado: se uma fonte falha, o resultado dela é nulo e o banco mantém o último valor (com a data antiga).
  */
 
-export const FONTE_TSE = "https://www.tse.jus.br/partidos/partidos-registrados-no-tse";
+export const FONTE_TSE = "https://cdn.tse.jus.br/estatistica/sead/odsele/orgao_partidario/orgao_partidario.zip";
+export const PAGINA_TSE = "https://dadosabertos.tse.jus.br/dataset/delegados-partidarios";
 export const FONTE_CAMARA = "https://dadosabertos.camara.leg.br/api/v2/deputados";
 export const FONTE_SENADO = "https://legis.senado.leg.br/dadosabertos/senador/lista/atual.json";
 
@@ -20,49 +21,50 @@ export function slugPartido(sigla: string) {
 
 export type RegistroPartido = { slug: string; sigla: string; nome: string; numero: string; deferimento: string };
 
-const limpar = (h: string) =>
-  h.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/\s+/g, " ").trim();
-
-/** Lê a tabela do TSE mapeando as colunas pelo cabeçalho (Sigla, Nome, Número, Deferimento). */
-export function lerTabelaTSE(html: string): { partidos: RegistroPartido[]; diagnostico: unknown } {
-  const linhas = [...html.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((m) => m[0]);
-  const celulas = (tr: string) => [...tr.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map((m) => limpar(m[1]));
-  let col = { sigla: -1, nome: -1, numero: -1, deferimento: -1 };
-  const partidos: RegistroPartido[] = [];
-  for (const tr of linhas) {
-    const c = celulas(tr);
-    if (c.length < 3) continue;
-    const baixo = c.map((x) => x.toLowerCase());
-    if (baixo.some((x) => x === "sigla" || x.startsWith("sigla"))) {
-      col = {
-        sigla: baixo.findIndex((x) => x.startsWith("sigla")),
-        nome: baixo.findIndex((x) => x.startsWith("nome") || x.includes("denomina")),
-        numero: baixo.findIndex((x) => /^(n[º°o.]|número|numero)/.test(x)),
-        deferimento: baixo.findIndex((x) => x.includes("deferimento") || x.includes("registro")),
-      };
-      continue;
-    }
-    if (col.sigla < 0 || col.nome < 0) continue;
-    const sigla = c[col.sigla], nome = c[col.nome];
-    if (!sigla || !nome || sigla.length > 20) continue;
-    partidos.push({
-      slug: slugPartido(sigla), sigla, nome,
-      numero: col.numero >= 0 ? (c[col.numero].match(/\d{2}/)?.[0] ?? "") : "",
-      deferimento: col.deferimento >= 0 ? c[col.deferimento] : "",
-    });
-  }
-  const unicos = [...new Map(partidos.map((p) => [p.slug, p])).values()];
-  return {
-    partidos: unicos,
-    diagnostico: { linhas: linhas.length, colunas: col, amostra: linhas.slice(0, 3).map(celulas) },
-  };
+/** Lê CSV do TSE (separador ";", campos entre aspas). */
+function linhasCSV(texto: string): string[][] {
+  return texto.split(/\r?\n/).filter(Boolean).map((l) => l.split(";").map((c) => c.replace(/^"|"$/g, "").trim()));
 }
 
+/**
+ * Partidos com diretório NACIONAL vigente no cadastro de órgãos partidários do TSE (dados abertos).
+ * Um partido só existe legalmente com registro no TSE, e todo partido registrado mantém órgão nacional.
+ */
 export async function buscarRegistroTSE() {
+  const { unzipSync } = await import("fflate");
   const r = await fetch(FONTE_TSE, { headers: UA, cache: "no-store" });
-  if (!r.ok) throw new Error(`TSE respondeu ${r.status}`);
-  return lerTabelaTSE(await r.text());
+  if (!r.ok) throw new Error(`TSE (dados abertos) respondeu ${r.status}`);
+  const zip = unzipSync(new Uint8Array(await r.arrayBuffer()));
+  const nomes = Object.keys(zip).filter((n) => n.toLowerCase().endsWith(".csv"));
+  const preferido = nomes.find((n) => /_br\.csv$/i.test(n)) ?? nomes[0];
+  if (!preferido) throw new Error("ZIP do TSE sem CSV");
+  const linhas = linhasCSV(new TextDecoder("latin1").decode(zip[preferido]));
+  const cab = linhas[0].map((c) => c.toUpperCase());
+  const i = (re: RegExp) => cab.findIndex((c) => re.test(c));
+  const iSigla = i(/^SG_PARTIDO$/), iNome = i(/^NM_PARTIDO$/), iNum = i(/^NR_PARTIDO$/);
+  const iAbr = i(/ABRANGENCIA|TP_ORGAO|DS_TIPO_ORGAO|^SG_UF$/);
+  const iSit = i(/SITUACAO|VIGENCIA_STATUS/);
+  const iFim = i(/^DT_FIM_VIGENCIA|DT_FIM/);
+  if (iSigla < 0 || iNome < 0) throw new Error(`CSV do TSE sem colunas esperadas: ${cab.slice(0, 30).join(",")}`);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const dataBR = (d: string) => { const m = d.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; };
+  const mapa = new Map<string, RegistroPartido>();
+  let nacionais = 0;
+  for (const c of linhas.slice(1)) {
+    const abr = iAbr >= 0 ? (c[iAbr] ?? "").toUpperCase() : "BR";
+    if (!(abr === "BR" || abr.includes("NACIONAL"))) continue;
+    nacionais++;
+    if (iSit >= 0 && /INATIV|ANULAD|CANCEL|EXTINT|SUSPENS/i.test(c[iSit] ?? "")) continue;
+    if (iFim >= 0) { const f = dataBR(c[iFim] ?? ""); if (f && f < hoje) continue; }
+    const sigla = c[iSigla], nome = c[iNome];
+    if (!sigla || !nome) continue;
+    const slug = slugPartido(sigla);
+    if (!mapa.has(slug)) mapa.set(slug, { slug, sigla, nome, numero: iNum >= 0 ? c[iNum] : "", deferimento: "" });
+  }
+  return {
+    partidos: [...mapa.values()],
+    diagnostico: { arquivos: nomes.slice(0, 40), usado: preferido, colunas: cab, linhas: linhas.length - 1, nacionais, amostra: linhas.slice(1, 4) },
+  };
 }
 
 /** Deputados em exercício, contados por partido (segue a paginação da API). */

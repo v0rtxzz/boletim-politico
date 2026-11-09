@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { FONTE_CAMARA, FONTE_SENADO, FONTE_TSE, buscarBancadaCamara, buscarBancadaSenado, buscarRegistroTSE } from "@/lib/partidos-oficial";
+import { FONTE_CAMARA, FONTE_SENADO, FONTE_TSE, PAGINA_TSE, buscarBancadaCamara, buscarBancadaSenado, buscarRegistroTSE } from "@/lib/partidos-oficial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabase.rpc("atualizar_partidos", {
     p_segredo: process.env.CRON_SECRET,
-    p_fonte_registro: FONTE_TSE,
+    p_fonte_registro: PAGINA_TSE,
     p_registro: tse.ok && tse.v.partidos.length >= 15 ? tse.v.partidos : null,
     p_camara: camara.ok ? { fonte: FONTE_CAMARA, bancadas: camara.v.bancadas } : null,
     p_senado: senado.ok ? { fonte: FONTE_SENADO, bancadas: senado.v.bancadas } : null,
