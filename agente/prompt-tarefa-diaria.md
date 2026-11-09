@@ -94,6 +94,37 @@ on conflict (termo) do nothing;
 ```
 Use o termo com inicial maiúscula e grafia padrão (ex.: "Medida provisória", "Quórum", "Taxa Selic"). Siglas: "PEC (Proposta de Emenda à Constituição)". Uma falha no glossário NÃO invalida o boletim: registre e mencione na notificação.
 
+PASSO 5B — Notícias por partido (área "Partidos" do site).
+Registre as notícias do boletim de hoje e os partidos envolvidos. Uma falha neste passo NÃO invalida o boletim: registre e mencione na notificação.
+
+O que é uma notícia: cada item ### do "1. RESUMO DO DIA"; cada subtítulo ### da "2. POLÍTICA BRASILEIRA" que traga fato novo (não repita o que já está no Resumo); cada parágrafo "Confirmado" ou "Análise" dos "4. BASTIDORES"; e a "7. ANÁLISE DO DIA" como uma notícia. Itens "Em apuração / não confirmado" NÃO entram. Itens só internacionais entram apenas se um partido brasileiro tiver papel relevante. Se um subtítulo trouxer dois assuntos distintos, registre duas notícias.
+
+REGRAS (obrigatórias):
+1. Associe um partido só se ele, ou um filiado, tiver papel relevante na notícia (protagonista, autor da decisão/declaração, relator, candidato, alvo direto). Citação de passagem NÃO conta.
+2. Atos institucionais contam para o partido do agente: presidente da República, ministros, presidentes da Câmara e do Senado, relatores etc. Descreva o papel ("como presidente da República").
+3. Filiação: a do político NA DATA da notícia. Confirme sempre que possível em fonte oficial e grave a URL usada em filiacao_fonte. Para deputados e senadores em exercício, consulte a lista oficial assim (o site lê as APIs da Câmara e do Senado):
+   select net.http_get(url := 'https://boletim-politico.vercel.app/api/partidos/atualizar?simular=1&nomes=Nome%20Um,Nome%20Dois', timeout_milliseconds := 90000);
+   espere cerca de 40 segundos (select pg_sleep(40);) e leia: select content::jsonb->'camara'->'filiacoes', content::jsonb->'senado'->'filiacoes' from net._http_response where id = <id retornado>;
+   Nesse caso use filiacao_fonte = 'https://dadosabertos.camara.leg.br/api/v2/deputados?nome=<Nome>' ou 'https://legis.senado.leg.br/dadosabertos/senador/lista/atual.json'. Se não houver fonte oficial e a filiação vier só de reportagem, use a URL da reportagem. Se a filiação for incerta, NÃO associe.
+4. tipo (um só): 'fato_confirmado' (ato ou fato verificado), 'declaracao' (fala, anúncio, promessa, posição), 'investigacao' (inquérito, denúncia, indiciamento, acusação, processo em andamento) ou 'analise' (interpretação). Investigação ou acusação NUNCA é condenação: no resumo, use "investigado", "acusado", "indiciado", "réu" conforme o caso e diga que não há condenação quando for o caso.
+5. temas (um ou mais): 'congresso', 'justica', 'eleicoes', 'governo'.
+6. Linguagem neutra e o mesmo tratamento para todos os partidos. Nada de ranking, nota ou avaliação positiva/negativa. O papel é uma frase factual curta.
+7. resumo: 1 a 3 frases neutras, só com fatos que estão no boletim. fontes: os links do próprio item.
+
+Partidos válidos (use o slug): select slug, sigla, nome from public.partidos where registrado order by sigla;
+
+Grave assim (substitui o que já existir para a data, sem duplicar):
+```sql
+delete from public.noticias where data = 'AAAA-MM-DD';
+insert into public.noticias (boletim_id, data, titulo, trecho_titulo, resumo, secao, tipo, temas, fontes) values
+((select id from public.boletins where data = 'AAAA-MM-DD'), 'AAAA-MM-DD', $n$<título descritivo>$n$, $n$<texto exato do ### de onde saiu, ou null>$n$,
+ $n$<resumo>$n$, '<seção, ex.: 1. RESUMO DO DIA>', '<tipo>', '{<tema>,<tema>}', $n$[{"titulo":"...","url":"https://..."}]$n$::jsonb)
+returning id, titulo;
+insert into public.noticias_partidos (noticia_id, partido_slug, politico, papel, filiacao_fonte) values
+(<id>, '<slug>', $n$<nome do político, ou null se o ator é o próprio partido>$n$, $n$<papel>$n$, '<url da filiação ou null>');
+```
+Verifique: select n.titulo, np.partido_slug, np.politico from public.noticias n left join public.noticias_partidos np on np.noticia_id = n.id where n.data = 'AAAA-MM-DD';
+
 PASSO 6 — Notificação ao usuário.
 Link do boletim: https://boletim-politico.vercel.app/boletim/AAAA-MM-DD
 Envie uma notificação push com a ferramenta PushNotification (carregue com ToolSearch "select:PushNotification"; se não existir, use SendUserMessage se existir). A notificação e a SUA RESPOSTA FINAL devem ter exatamente este formato:

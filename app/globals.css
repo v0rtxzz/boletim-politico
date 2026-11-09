@@ -227,3 +227,4 @@ body.modo-voz [data-bloco] { cursor: pointer; }
 .prosa h3[id] { scroll-margin-top: 6.5rem; }
 @media (prefers-reduced-motion: no-preference) { h3:target { animation: alvo 1.6s ease-out; } }
 @keyframes alvo { from { background: var(--acento-fundo); } }
+.prosa .selo-declaracao::before { border-radius: 2px; border: 1.5px solid var(--tinta); transform: rotate(45deg) scale(0.85); }

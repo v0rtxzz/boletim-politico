@@ -19,3 +19,6 @@ export const IconeTema = ({ className }: P) => (
 export const IconeExterno = ({ className }: P) => (
   <svg {...base} width={14} height={14} className={className}><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
 );
+export const IconePartidos = ({ className }: P) => (
+  <svg {...base} className={className}><path d="M5 21V4" /><path d="M5 4.5c2.5-1.5 5-1.5 7 0s4.5 1.5 7 0v8c-2.5 1.5-5 1.5-7 0s-4.5-1.5-7 0" /></svg>
+);
