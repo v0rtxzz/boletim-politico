@@ -26,10 +26,25 @@ export async function GET(req: Request) {
     tentar(buscarRegistroTSE), tentar(buscarBancadaCamara), tentar(buscarBancadaSenado),
   ]);
 
+  // Diagnóstico: consulta o portal de dados abertos do TSE (API pública CKAN) atrás do cadastro de partidos.
+  if (url.searchParams.has("sondar")) {
+    const q = url.searchParams.get("sondar") || "partidos";
+    try {
+      const r = await fetch(`https://dadosabertos.tse.jus.br/api/3/action/package_search?q=${encodeURIComponent(q)}&rows=20`,
+        { headers: { "User-Agent": "BoletimPolitico/1.0 (+https://boletim-politico.vercel.app)", Accept: "application/json" }, cache: "no-store" });
+      const j = await r.json().catch(() => null) as { result?: { results?: { name: string; title: string; resources?: { name: string; url: string; format: string }[] }[] } } | null;
+      return NextResponse.json({
+        status: r.status,
+        datasets: j?.result?.results?.map((d) => ({ name: d.name, title: d.title, recursos: d.resources?.slice(0, 8).map((x) => ({ nome: x.name, url: x.url, formato: x.format })) })),
+      });
+    } catch (e) { return NextResponse.json({ erro: (e as Error).message }); }
+  }
+
   if (simular) {
     const procurados = (url.searchParams.get("nomes") ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const sa = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const achar = (lista?: { nome: string; sigla: string }[]) =>
-      procurados.map((n) => ({ procurado: n, achados: (lista ?? []).filter((x) => x.nome.toLowerCase().includes(n)) }));
+      procurados.map((n) => ({ procurado: n, achados: (lista ?? []).filter((x) => sa(x.nome).includes(sa(n))) }));
     return NextResponse.json({
       tse: tse.ok ? { total: tse.v.partidos.length, partidos: tse.v.partidos, diagnostico: tse.v.diagnostico } : tse,
       camara: camara.ok ? { total: camara.v.total, bancadas: camara.v.bancadas, filiacoes: achar(camara.v.nomes) } : camara,

@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconeArquivo, IconeGlossario, IconeHoje, IconeTema } from "./Icones";
+import { IconeArquivo, IconeGlossario, IconeHoje, IconePartidos, IconeTema } from "./Icones";
 import Notificacoes from "./Notificacoes";
 import PreferenciasTexto from "./PreferenciasTexto";
 
 const itens = [
   { href: "/", rotulo: "Hoje", Icone: IconeHoje, ativo: (p: string) => p === "/" },
   { href: "/arquivo", rotulo: "Arquivo", Icone: IconeArquivo, ativo: (p: string) => p.startsWith("/arquivo") || p.startsWith("/boletim") },
+  { href: "/partidos", rotulo: "Partidos", Icone: IconePartidos, ativo: (p: string) => p.startsWith("/partidos") },
   { href: "/glossario", rotulo: "Glossário", Icone: IconeGlossario, ativo: (p: string) => p.startsWith("/glossario") },
 ];
 
@@ -53,7 +54,7 @@ export function BarraInferior() {
   const p = usePathname();
   return (
     <nav aria-label="Principal" className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--fio)] bg-[color-mix(in_oklab,var(--papel)_88%,transparent)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-      <ul className="grid grid-cols-3">
+      <ul className="grid grid-cols-4">
         {itens.map(({ href, rotulo, Icone, ativo }) => {
           const on = ativo(p);
           return (

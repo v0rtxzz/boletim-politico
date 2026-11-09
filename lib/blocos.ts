@@ -119,3 +119,29 @@ export function dividirBoletim(md: string, titulo: string): Divisao {
 
   return { horario, secoes, trechos, mapas, titulos, minutos: Math.max(1, Math.round(palavras / 220)) };
 }
+
+const normal = (t: string) => semAcento(t).replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Âncora da notícia dentro do boletim: "#item-N" quando é um título (###),
+ * senão a âncora da seção. Usado para links "ler no boletim".
+ */
+export function ancoraNoticia(md: string, tituloBoletim: string, tituloNoticia: string, secao: string | null): string {
+  const d = dividirBoletim(md, tituloBoletim);
+  const alvo = normal(limparFala(tituloNoticia));
+  for (let s = 0; s < d.secoes.length; s++) {
+    const arvore = parser.parse(d.secoes[s].md) as Root;
+    for (const no of arvore.children) {
+      if (no.type !== "heading" || no.depth !== 3) continue;
+      if (normal(limparFala(toString(no))) === alvo) {
+        const idx = d.mapas[s][no.position!.start.offset!];
+        if (idx !== undefined) return `item-${idx}`;
+      }
+    }
+  }
+  if (secao) {
+    const sec = d.secoes.find((x) => normal(x.nome) === normal(secao.replace(/^\d+\.\s*/, "")) || normal(`${x.numero} ${x.nome}`) === normal(secao));
+    if (sec) return sec.id;
+  }
+  return "";
+}
