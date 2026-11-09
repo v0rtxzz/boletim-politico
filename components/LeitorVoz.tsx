@@ -101,6 +101,8 @@ export default function LeitorVoz({ titulo }: { titulo: string }) {
   const idxRef = useRef(0);
   const velRef = useRef(1);
   const voz = useRef<SpeechSynthesisVoice | null>(null);
+  const comecou = useRef(false); // alguma fala já tocou nesta sessão?
+  const [aviso, setAviso] = useState("");
 
   // Monta a lista de blocos a partir do texto renderizado.
   useEffect(() => {
@@ -151,15 +153,18 @@ export default function LeitorVoz({ titulo }: { titulo: string }) {
   const falar = useCallback((i: number, parte = 0) => {
     const synth = window.speechSynthesis;
     const g = ++geracao.current;
-    synth.cancel();
+    // Só cancela se houver algo falando: no Safari, cancel() seguido de speak() pode descartar a fala.
+    if (synth.speaking || synth.pending) synth.cancel();
     const b = blocos.current[i];
     if (!b) { setTocando(false); document.querySelectorAll(".lendo").forEach((e) => e.classList.remove("lendo")); return; }
     idxRef.current = i;
     marcar(i);
+    if (!voz.current) voz.current = escolherVoz();
     const u = new SpeechSynthesisUtterance(b.partes[parte]);
     u.lang = "pt-BR";
     if (voz.current) u.voice = voz.current;
     u.rate = velRef.current;
+    u.onstart = () => { if (g === geracao.current) { comecou.current = true; setAviso(""); } };
     u.onend = () => {
       if (g !== geracao.current) return;
       if (parte + 1 < b.partes.length) falar(i, parte + 1);
@@ -168,10 +173,22 @@ export default function LeitorVoz({ titulo }: { titulo: string }) {
     u.onerror = (e) => {
       if (g !== geracao.current || e.error === "interrupted" || e.error === "canceled") return;
       setTocando(false);
+      setAviso(e.error === "not-allowed"
+        ? "O navegador bloqueou o áudio. Toque no botão de reproduzir para tentar de novo."
+        : `A voz falhou (${e.error}). Toque no botão de reproduzir para tentar de novo.`);
     };
     setTocando(true);
-    // Pequeno atraso: o Safari às vezes ignora speak() logo após cancel().
-    setTimeout(() => { if (g === geracao.current) synth.speak(u); }, 60);
+    // speak() precisa acontecer no mesmo instante do toque: o iPhone recusa fala iniciada depois.
+    synth.speak(u);
+    if (synth.paused) synth.resume();
+    // Se nada começar em 4 s, avisa em vez de ficar mudo sem explicação.
+    if (!comecou.current) {
+      setTimeout(() => {
+        if (g === geracao.current && !comecou.current) {
+          setAviso("Nenhum som começou. No iPhone, confira se a chave lateral não está no modo silencioso e se o volume está alto.");
+        }
+      }, 4000);
+    }
   }, [marcar]);
 
   const pausar = useCallback(() => {
@@ -240,6 +257,7 @@ export default function LeitorVoz({ titulo }: { titulo: string }) {
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[0.95rem] font-semibold truncate">{secao}</p>
+            {aviso && <p role="alert" className="text-xs font-medium text-[var(--tinta)] mb-0.5">{aviso}</p>}
             <p className="text-xs text-[var(--suave)]">
               {tocando ? "Lendo" : "Pausado"} <span className="num">{indice + 1}</span> de <span className="num">{total}</span>. Toque num trecho para ler dali.
             </p>
