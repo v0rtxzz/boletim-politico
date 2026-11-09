@@ -1,5 +1,5 @@
 // Service worker mínimo: rede primeiro, cópia em cache para leitura offline.
-const CACHE = "boletim-v1";
+const CACHE = "boletim-v2";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {

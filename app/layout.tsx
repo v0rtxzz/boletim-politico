@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
-import Link from "next/link";
+import { Newsreader, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import RegistrarSW from "@/components/RegistrarSW";
+import { BarraInferior, Topo } from "@/components/Navegacao";
 
-const sans = Inter({ subsets: ["latin"], variable: "--fonte-sans", display: "swap" });
-const serif = Source_Serif_4({ subsets: ["latin"], variable: "--fonte-serif", display: "swap" });
+const texto = Newsreader({ subsets: ["latin"], variable: "--fonte-texto", axes: ["opsz"], style: ["normal", "italic"], display: "swap" });
+const ui = Schibsted_Grotesk({ subsets: ["latin"], variable: "--fonte-ui", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Boletim Político Diário", template: "%s · Boletim Político" },
@@ -23,28 +23,24 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#141413" },
+    { media: "(prefers-color-scheme: light)", color: "#eef0ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1114" },
   ],
 };
 
+// Aplica o tema salvo antes da pintura, para não piscar.
+const scriptTema = `try{var t=localStorage.getItem("tema");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${sans.variable} ${serif.variable}`}>
+    <html lang="pt-BR" className={`${texto.variable} ${ui.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: scriptTema }} />
+      </head>
       <body className="min-h-dvh">
-        <header className="sticky top-0 z-20 bg-[var(--fundo)]/95 backdrop-blur border-b border-[var(--linha)] pt-[env(safe-area-inset-top)]">
-          <div className="mx-auto max-w-2xl px-4 h-[3.25rem] flex items-center justify-between">
-            <Link href="/" className="font-serif font-semibold text-[1.05rem] tracking-tight">
-              Boletim Político
-            </Link>
-            <nav className="flex gap-4 text-sm text-[var(--suave)]">
-              <Link href="/" className="hover:text-[var(--texto)]">Hoje</Link>
-              <Link href="/arquivo" className="hover:text-[var(--texto)]">Arquivo</Link>
-              <Link href="/glossario" className="hover:text-[var(--texto)]">Glossário</Link>
-            </nav>
-          </div>
-        </header>
-        <main className="mx-auto max-w-2xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">{children}</main>
+        <Topo />
+        <main className="mx-auto max-w-[42rem] px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-16">{children}</main>
+        <BarraInferior />
         <RegistrarSW />
       </body>
     </html>
