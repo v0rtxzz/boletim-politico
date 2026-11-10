@@ -12,7 +12,7 @@ export async function buscarTudo(q: string): Promise<Resultado[]> {
   const like = `%${t}%`;
   const [ps, pol, stf, glo, not, bol] = await Promise.all([
     supabase.from("partidos").select("slug, sigla, nome").eq("registrado", true).or(`sigla.ilike.${like},nome.ilike.${like}`).limit(8),
-    supabase.from("politicos").select("id, nome, casa, partido_sigla, uf, foto_url").eq("em_exercicio", true).ilike("nome", like).limit(12),
+    supabase.from("politicos").select("id, nome, casa, partido_sigla, uf, foto_url, em_exercicio, periodo").ilike("nome", like).order("em_exercicio", { ascending: false }).order("ultima_legislatura", { ascending: false, nullsFirst: true }).limit(20),
     supabase.from("stf_ministros").select("slug, nome, cargo, indicado_por").not("nome", "is", null).ilike("nome", like).limit(5),
     supabase.from("glossario").select("termo, definicao").or(`termo.ilike.${like},definicao.ilike.${like}`).limit(8),
     supabase.from("noticias").select("data, titulo, origem").or(`titulo.ilike.${like},resumo.ilike.${like}`).order("data", { ascending: false }).limit(8),
@@ -20,7 +20,10 @@ export async function buscarTudo(q: string): Promise<Resultado[]> {
   ]);
   const r: Resultado[] = [];
   for (const p of ps.data ?? []) r.push({ grupo: "Partidos", titulo: p.sigla, sub: p.nome, href: `/partidos/${p.slug}` });
-  for (const p of pol.data ?? []) r.push({ grupo: "Políticos", titulo: p.nome, sub: `${p.casa === "camara" ? "Deputado(a)" : "Senador(a)"}${p.partido_sigla ? `, ${p.partido_sigla}` : ""}${p.uf ? `-${p.uf}` : ""}`, href: `/politicos/${p.id}`, foto: p.foto_url });
+  for (const p of pol.data ?? []) {
+    const cargo = `${p.em_exercicio ? "" : "Ex-"}${p.casa === "camara" ? (p.em_exercicio ? "Deputado(a)" : "deputado(a)") : (p.em_exercicio ? "Senador(a)" : "senador(a)")}`;
+    r.push({ grupo: "Políticos", titulo: p.nome, sub: `${cargo}${p.partido_sigla ? `, ${p.partido_sigla}` : ""}${p.uf ? `-${p.uf}` : ""}${!p.em_exercicio && p.periodo ? ` (último mandato: ${p.periodo})` : ""}`, href: `/politicos/${p.id}`, foto: p.foto_url });
+  }
   for (const m of stf.data ?? []) r.push({ grupo: "STF", titulo: m.nome!, sub: `${m.cargo ? `${m.cargo}, ` : ""}indicado por ${m.indicado_por}`, href: "/stf#ministros" });
   const ts = sa(t);
   for (const c of CHEFES.filter((c) => sa(`${c.nome} ${c.partido ?? ""}`).includes(ts)).slice(0, 6))

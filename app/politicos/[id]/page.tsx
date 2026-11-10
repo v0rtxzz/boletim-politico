@@ -45,12 +45,12 @@ export default async function PaginaPolitico({ params }: Props) {
         <div className="min-w-0">
           <h1 className="font-serif [font-variation-settings:'opsz'_48] text-[1.9rem] leading-tight font-semibold tracking-[-0.01em]">{p.nome}</h1>
           <p className="mt-1 text-[var(--suave)]">
-            {CARGO[p.casa]}{p.uf ? ` por ${p.uf}` : ""}
-            {!p.em_exercicio && " (fora de exercício)"}
+            {p.em_exercicio ? CARGO[p.casa] : `Ex-${CARGO[p.casa].toLowerCase()}`}{p.uf ? ` por ${p.uf}` : ""}
+            {!p.em_exercicio && p.periodo && <span className="block text-sm">Último mandato encontrado: {p.periodo}</span>}
           </p>
           {p.partido_sigla && (
             p.partido_slug
-              ? <Link href={`/partidos/${p.partido_slug}`} className="mt-2 inline-flex rounded-full border border-[var(--fio)] px-3 py-1 text-sm hover:bg-[var(--acento-fundo)]">{p.partido_sigla}</Link>
+              ? <Link href={`/partidos/${p.partido_slug}`} title={p.em_exercicio ? undefined : "Partido no último mandato"} className="mt-2 inline-flex rounded-full border border-[var(--fio)] px-3 py-1 text-sm hover:bg-[var(--acento-fundo)]">{p.partido_sigla}</Link>
               : <span className="mt-2 inline-flex rounded-full border border-[var(--fio)] px-3 py-1 text-sm">{p.partido_sigla}</span>
           )}
         </div>

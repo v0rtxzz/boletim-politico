@@ -5,6 +5,7 @@ export type Politico = {
   id: string; casa: "camara" | "senado"; id_oficial: number; nome: string;
   partido_sigla: string | null; partido_slug: string | null; uf: string | null;
   foto_url: string | null; pagina_url: string | null; em_exercicio: boolean; fonte: string; atualizado_em: string;
+  ultima_legislatura: number | null; periodo: string | null;
 };
 
 export const CARGO: Record<Politico["casa"], string> = { camara: "Deputado(a) federal", senado: "Senador(a)" };
