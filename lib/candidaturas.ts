@@ -6,7 +6,10 @@ export type Candidatura = { municipio?: string | null; votos?: number | null; sq
 export const CARGOS_CAND = ["PRESIDENTE", "VICE-PRESIDENTE", "GOVERNADOR", "SENADOR", "DEPUTADO FEDERAL", "DEPUTADO ESTADUAL", "DEPUTADO DISTRITAL", "PREFEITO", "VICE-PREFEITO", "VEREADOR"] as const;
 export const ANOS_GERAIS = [2026, 2024, 2022, 2018, 2014, 2010, 2006, 2002, 1998, 1994];
 export const cargoBonito = (c: string) => c.charAt(0) + c.slice(1).toLowerCase();
-export const situacaoBonita = (s: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : "Resultado não informado");
+export const situacaoBonita = (s: string | null) => (s ? (s.charAt(0) + s.slice(1).toLowerCase()).replace(/\bqp\b/, "QP") : "Resultado não informado");
+/** "EMBU DAS ARTES" -> "Embu das Artes" */
+export const municipioBonito = (m: string) =>
+  m.toLowerCase().split(" ").map((w, i) => (i > 0 && /^(da|de|do|das|dos|e|d')$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 
 export async function buscarCandidaturas(f: { ano?: number; cargo?: string; uf?: string; partido?: string; q?: string; pagina?: number }) {
   const porPagina = 60;

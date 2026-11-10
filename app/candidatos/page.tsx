@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import FotoPolitico from "@/components/FotoPolitico";
-import { ANOS_GERAIS, CARGOS_CAND, buscarCandidaturas, cargoBonito, situacaoBonita } from "@/lib/candidaturas";
+import { ANOS_GERAIS, CARGOS_CAND, buscarCandidaturas, cargoBonito, municipioBonito, situacaoBonita } from "@/lib/candidaturas";
 import { supabase } from "@/lib/supabase";
 import { fotoWiki } from "@/lib/wiki";
 
@@ -74,7 +74,7 @@ export default async function Candidatos({ searchParams }: Props) {
                 <span className="min-w-0">
                   <span className="block font-medium leading-snug">{c.nome_urna || c.nome}</span>
                   <span className="block text-sm text-[var(--suave)]">
-                    {cargoBonito(c.cargo)}{c.municipio ? ` de ${c.municipio.charAt(0)}${c.municipio.slice(1).toLowerCase()}` : ""}{c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}{c.partido_sigla ? `, ${c.partido_sigla}` : ""}{c.numero ? ` (${c.numero})` : ""}
+                    {cargoBonito(c.cargo)}{c.municipio ? ` de ${municipioBonito(c.municipio)}` : ""}{c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}{c.partido_sigla ? `, ${c.partido_sigla}` : ""}{c.numero ? ` (${c.numero})` : ""}
                   </span>
                   <span className="block text-xs text-[var(--suave)]">{situacaoBonita(c.situacao)}{c.votos != null ? ` · ${c.votos.toLocaleString("pt-BR")} votos` : ""}</span>
                 </span>
