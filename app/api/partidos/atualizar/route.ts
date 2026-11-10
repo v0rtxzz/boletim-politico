@@ -87,6 +87,8 @@ export async function GET(req: Request) {
       await supabase.rpc("progresso_importacao", { p_segredo: process.env.CRON_SECRET, p_valor: n - 1 });
     } catch (e) { importacao.push(`${n}ª: ${(e as Error).message.slice(0, 80)}`); break; }
   }
+  // Candidaturas ganham a foto oficial de quem também foi parlamentar (inclusive ex-deputados recém-importados).
+  await supabase.rpc("casar_fotos_candidaturas", { p_segredo: process.env.CRON_SECRET });
   const falhas = { tse: tse.ok ? null : tse.erro, camara: camara.ok ? null : camara.erro, senado: senado.ok ? null : senado.erro };
   console.log("partidos atualizados", data, falhas);
   return NextResponse.json({ resultado: data, politicos, importacao, falhas });

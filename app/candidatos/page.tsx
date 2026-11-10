@@ -3,6 +3,7 @@ import Link from "next/link";
 import FotoPolitico from "@/components/FotoPolitico";
 import { ANOS_GERAIS, CARGOS_CAND, buscarCandidaturas, cargoBonito, situacaoBonita } from "@/lib/candidaturas";
 import { supabase } from "@/lib/supabase";
+import { fotoWiki } from "@/lib/wiki";
 
 export const metadata: Metadata = { title: "Candidatos" };
 export const dynamic = "force-dynamic";
@@ -21,6 +22,12 @@ export default async function Candidatos({ searchParams }: Props) {
     const q = new URLSearchParams(Object.entries({ ...sp, cargo, p: String(p) }).filter(([, v]) => v) as [string, string][]);
     return `/candidatos?${q}`;
   };
+  // Presidente e vice: sem foto oficial da Câmara/Senado, usamos a da Wikipédia (Wikimedia Commons), pelo nome de urna.
+  const titulo = (n: string) => n.toLowerCase().replace(/(^|\s)\S/g, (x) => x.toUpperCase()).replace(/ (Da|De|Do|Das|Dos|E) /g, (x) => x.toLowerCase()).replace(/\s+/g, "_");
+  await Promise.all(r.itens.filter((c) => !c.foto_url && (c.cargo === "PRESIDENTE" || c.cargo === "VICE-PRESIDENTE")).map(async (c) => {
+    c.foto_url = (await fotoWiki(titulo(c.nome_urna || c.nome), 160)) ?? (await fotoWiki(titulo(c.nome), 160));
+  }));
+  const filtrando = Boolean(sp.q || sp.ano || sp.uf || sp.partido || (sp.cargo !== undefined && sp.cargo !== "PRESIDENTE"));
   const porAno = r.itens.reduce<Record<number, typeof r.itens>>((a, c) => { (a[c.ano] ??= []).push(c); return a; }, {});
 
   return (
@@ -50,6 +57,7 @@ export default async function Candidatos({ searchParams }: Props) {
             {(partidos ?? []).map((p) => <option key={p.slug} value={p.slug}>{p.sigla}</option>)}
           </select>
           <button className="rounded-full bg-[var(--tinta)] text-[var(--papel)] px-5 py-2 text-sm font-medium cursor-pointer">Filtrar</button>
+          {filtrando && <Link href="/candidatos" className="rounded-full border border-[var(--fio)] px-4 py-2 text-sm font-medium hover:bg-[var(--acento-fundo)]">Limpar filtros</Link>}
         </div>
       </form>
 
