@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { gravarCandidaturas, lerCandidaturas } from "@/lib/importar-tse";
+import { gravarCandidaturas, gravarVotos, lerCandidaturas, lerVotos } from "@/lib/importar-tse";
+import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +13,16 @@ export async function GET(req: Request) {
   }
   const u = new URL(req.url);
   const ano = Number(u.searchParams.get("ano"));
-  if (!(ano >= 1994 && ano <= 2030 && ano % 4 === 2)) return NextResponse.json({ erro: "ano de eleição geral inválido" }, { status: 400 });
+  if (u.searchParams.has("corte")) {
+    const { data, error } = await supabase.rpc("aplicar_corte_candidaturas", { p_segredo: process.env.CRON_SECRET });
+    return error ? NextResponse.json({ erro: error.message }, { status: 500 }) : NextResponse.json({ corte: data });
+  }
+  if (!(ano >= 1994 && ano <= 2030 && ano % 2 === 0)) return NextResponse.json({ erro: "ano de eleição inválido" }, { status: 400 });
   try {
+    if (u.searchParams.has("votos")) {
+      const votos = await lerVotos(ano);
+      return NextResponse.json({ ano, candidaturas_com_votos: votos.length, atualizados: await gravarVotos(ano, votos) });
+    }
     const { candidaturas, diag } = await lerCandidaturas(ano);
     if (u.searchParams.has("simular")) {
       return NextResponse.json({ ano, total: candidaturas.length, diag, amostra: candidaturas.filter((c) => c.cargo === "PRESIDENTE").slice(0, 20) });
