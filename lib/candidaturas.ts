@@ -1,10 +1,10 @@
 import { supabase } from "./supabase";
 
-export type Candidatura = { sq_candidato: number; ano: number; cargo: string; uf: string | null; nome: string; nome_urna: string | null; numero: string | null;
+export type Candidatura = { municipio?: string | null; votos?: number | null; sq_candidato: number; ano: number; cargo: string; uf: string | null; nome: string; nome_urna: string | null; numero: string | null;
   partido_sigla: string | null; partido_slug: string | null; situacao: string | null; situacao_candidatura: string | null; foto_url: string | null };
 
-export const CARGOS_CAND = ["PRESIDENTE", "VICE-PRESIDENTE", "GOVERNADOR", "SENADOR", "DEPUTADO FEDERAL"] as const;
-export const ANOS_GERAIS = [2026, 2022, 2018, 2014, 2010, 2006, 2002, 1998, 1994];
+export const CARGOS_CAND = ["PRESIDENTE", "VICE-PRESIDENTE", "GOVERNADOR", "SENADOR", "DEPUTADO FEDERAL", "DEPUTADO ESTADUAL", "DEPUTADO DISTRITAL", "PREFEITO", "VICE-PREFEITO", "VEREADOR"] as const;
+export const ANOS_GERAIS = [2026, 2024, 2022, 2018, 2014, 2010, 2006, 2002, 1998, 1994];
 export const cargoBonito = (c: string) => c.charAt(0) + c.slice(1).toLowerCase();
 export const situacaoBonita = (s: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : "Resultado não informado");
 

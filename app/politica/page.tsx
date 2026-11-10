@@ -10,9 +10,11 @@ export const dynamic = "force-dynamic";
 const AREAS = [
   { href: "/partidos", titulo: "Partidos", texto: "Os partidos registrados no TSE, suas bancadas e as notícias em que aparecem." },
   { href: "/politicos", titulo: "Políticos", texto: "Congresso atual e ex-parlamentares desde o Império, com foto, histórico de partidos e mandatos." },
-  { href: "/candidatos", titulo: "Candidatos", texto: "Quem se candidatou a presidente, governador, senador e deputado federal desde 1994." },
+  { href: "/candidatos", titulo: "Candidatos", texto: "Candidaturas desde 1994 com votos, e os prefeitos e vereadores eleitos em 2024." },
   { href: "/stf", titulo: "STF", texto: "Os ministros do Supremo, quem indicou cada um, há quanto tempo estão lá e como o tribunal funciona." },
   { href: "/politica/historia", titulo: "Chefes de Estado", texto: "Imperadores e presidentes do Brasil: período, como chegaram e como saíram do cargo." },
+  { href: "/politica/constituicao", titulo: "Constituição explicada", texto: "A Constituição de 1988 resumida em linguagem simples, tema por tema." },
+  { href: "/politica/conceitos", titulo: "Esquerda, centro e direita", texto: "Os termos do espectro político explicados, com o que defendem e as críticas." },
   { href: "/retrospectiva", titulo: "Retrospectiva", texto: "Acontecimentos importantes dos últimos 12 meses, com fonte." },
   { href: "/glossario", titulo: "Glossário", texto: "Termos políticos, jurídicos e econômicos explicados sem jargão." },
 ];

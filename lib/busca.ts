@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { CHEFES } from "./historia";
+import { CONCEITOS, CONSTITUICAO } from "./conteudo-civico";
 import { semAcento } from "./texto";
 
 export type Resultado = { grupo: string; titulo: string; sub?: string; href: string; foto?: string | null };
@@ -29,6 +30,10 @@ export async function buscarTudo(q: string): Promise<Resultado[]> {
   const ts = sa(t);
   for (const c of CHEFES.filter((c) => sa(`${c.nome} ${c.partido ?? ""}`).includes(ts)).slice(0, 6))
     r.push({ grupo: "História", titulo: c.nome, sub: `${c.periodo}${c.partido ? `, ${c.partido}` : ""}`, href: `/politica/historia#${c.periodoGeral.replace(/\s+/g, "-")}` });
+  for (const c of CONSTITUICAO.filter((c) => sa(`${c.titulo} ${c.itens.join(" ")}`).includes(ts)).slice(0, 5))
+    r.push({ grupo: "Constituição", titulo: c.titulo, sub: c.artigos, href: `/politica/constituicao#${c.id}` });
+  for (const c of CONCEITOS.filter((c) => sa(`${c.titulo} ${c.texto.join(" ")}`).includes(ts)).slice(0, 5))
+    r.push({ grupo: "Conceitos políticos", titulo: c.titulo, href: `/politica/conceitos#${c.id}` });
   for (const c of cand.data ?? []) r.push({ grupo: "Candidaturas (TSE)", titulo: c.nome_urna || c.nome, sub: `${c.ano}: ${c.cargo.charAt(0)}${c.cargo.slice(1).toLowerCase()}${c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}${c.partido_sigla ? `, ${c.partido_sigla}` : ""}${c.situacao ? ` (${c.situacao.toLowerCase()})` : ""}`, href: `/candidatos?q=${encodeURIComponent(c.nome_urna || c.nome)}&ano=${c.ano}`, foto: c.foto_url });
   for (const g of glo.data ?? []) r.push({ grupo: "Glossário", titulo: g.termo, sub: g.definicao.slice(0, 110) + (g.definicao.length > 110 ? "…" : ""), href: `/glossario?q=${encodeURIComponent(g.termo)}` });
   for (const n of not.data ?? []) r.push({ grupo: "Notícias", titulo: n.titulo, sub: n.data.split("-").reverse().join("/"), href: n.origem === "boletim" ? `/boletim/${n.data}` : "/retrospectiva" });

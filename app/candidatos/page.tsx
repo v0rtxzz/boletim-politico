@@ -34,7 +34,7 @@ export default async function Candidatos({ searchParams }: Props) {
     <div className="pt-4">
       <Link href="/politica" className="text-sm text-[var(--suave)] hover:text-[var(--tinta)]">Política brasileira</Link>
       <h1 className="mt-3 font-serif [font-variation-settings:'opsz'_60] text-[2.2rem] leading-none font-medium tracking-[-0.02em]">Candidatos</h1>
-      <p className="mt-2 text-[var(--suave)] max-w-[46ch]">Todas as candidaturas a presidente, vice, governador, senador e deputado federal nas eleições gerais de 1994 a 2026, segundo o TSE.</p>
+      <p className="mt-2 text-[var(--suave)] max-w-[46ch]">Candidaturas das eleições gerais de 1994 a 2026 (presidente, governador, senador e deputados) e os prefeitos e vereadores eleitos em 2024, segundo o TSE.</p>
 
       <form action="/candidatos" className="mt-5 space-y-2" role="search">
         <input name="q" type="search" defaultValue={sp.q} placeholder="Nome do candidato" aria-label="Nome do candidato"
@@ -74,9 +74,9 @@ export default async function Candidatos({ searchParams }: Props) {
                 <span className="min-w-0">
                   <span className="block font-medium leading-snug">{c.nome_urna || c.nome}</span>
                   <span className="block text-sm text-[var(--suave)]">
-                    {cargoBonito(c.cargo)}{c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}{c.partido_sigla ? `, ${c.partido_sigla}` : ""}{c.numero ? ` (${c.numero})` : ""}
+                    {cargoBonito(c.cargo)}{c.municipio ? ` de ${c.municipio.charAt(0)}${c.municipio.slice(1).toLowerCase()}` : ""}{c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}{c.partido_sigla ? `, ${c.partido_sigla}` : ""}{c.numero ? ` (${c.numero})` : ""}
                   </span>
-                  <span className="block text-xs text-[var(--suave)]">{situacaoBonita(c.situacao)}</span>
+                  <span className="block text-xs text-[var(--suave)]">{situacaoBonita(c.situacao)}{c.votos != null ? ` · ${c.votos.toLocaleString("pt-BR")} votos` : ""}</span>
                 </span>
               </li>
             ))}
@@ -93,7 +93,7 @@ export default async function Candidatos({ searchParams }: Props) {
       )}
 
       <p className="mt-8 text-xs leading-relaxed text-[var(--suave)]">
-        Fonte: <a className="underline underline-offset-2" href="https://dadosabertos.tse.jus.br/dataset/" target="_blank" rel="noopener noreferrer">Portal de Dados Abertos do TSE</a> (arquivos "consulta_cand"). A situação mostra o resultado final da candidatura. Fotos: oficiais da Câmara/Senado ou Wikimedia, quando disponíveis.
+        Fonte: <a className="underline underline-offset-2" href="https://dadosabertos.tse.jus.br/dataset/" target="_blank" rel="noopener noreferrer">Portal de Dados Abertos do TSE</a> (arquivos "consulta_cand"). A situação mostra o resultado final da candidatura. Para manter a lista útil: nas eleições municipais aparecem só os eleitos; nas gerais, saem os não eleitos com votação muito baixa (menos de 25% dos votos do eleito menos votado no mesmo cargo e estado, ou menos de 5% dos votos para governador e senador). Presidente e vice aparecem sempre. Fotos: oficiais da Câmara/Senado ou Wikimedia, quando disponíveis.
       </p>
     </div>
   );
