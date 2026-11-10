@@ -61,6 +61,26 @@ const PROXIMO = "M16 5h2v14h-2zM5 6.2v11.6a.8.8 0 0 0 1.25.66l8.15-5.8a.8.8 0 0 
 const FECHAR = "M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z";
 const FONE = "M12 3a8 8 0 0 0-8 8v6a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H6v-2a6 6 0 1 1 12 0v2h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-6a8 8 0 0 0-8-8z";
 
+/**
+ * iPhone: a voz do aparelho é tratada como som "de ambiente" e fica muda com a chave lateral no silencioso.
+ * Pedimos ao sistema a categoria "reprodução" (Audio Session API) e mantemos um áudio silencioso tocando,
+ * o que faz o iOS liberar o som. Precisa acontecer dentro do toque.
+ */
+let manterVivo: HTMLAudioElement | null = null;
+function destravarAudioIOS(silencioUrl: string) {
+  try {
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = "playback";
+  } catch {}
+  try {
+    if (!manterVivo) { manterVivo = new Audio(silencioUrl); manterVivo.loop = true; manterVivo.volume = 0.01; }
+    manterVivo.play().catch(() => {});
+  } catch {}
+}
+function soltarAudioIOS() { try { manterVivo?.pause(); } catch {} }
+const ehIOS = () => typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+const instalado = () => typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true);
+
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[] }) {
@@ -75,6 +95,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
   const [vel, setVel] = useState(1);
   const [aviso, setAviso] = useState("");
   const [tempo, setTempo] = useState(0);
+  const [semSom, setSemSom] = useState(false);
   const [retomar, setRetomar] = useState<number | null>(null); // trecho onde a escuta parou
 
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -221,10 +242,19 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
       setAviso(`A voz falhou (${e.error}). Toque em reproduzir para tentar de novo.`);
     };
     setTocando(true);
+    if (!comecou.current && parte === 0) {
+      // Aquecimento exigido por algumas versões do iOS: uma fala vazia libera as seguintes.
+      try { const aquece = new SpeechSynthesisUtterance(" "); aquece.volume = 0; synth.speak(aquece); } catch {}
+    }
     synth.speak(u);
     if (synth.paused) synth.resume();
     if (!comecou.current) setTimeout(() => {
-      if (g === geracao.current && !comecou.current) setAviso("Nenhum som começou. No iPhone, confira se a chave lateral não está no modo silencioso e o volume.");
+      if (g === geracao.current && !comecou.current) {
+        setAviso(ehIOS() && instalado()
+          ? "O iPhone não liberou a voz do aparelho no app instalado. Toque em \"Abrir no Safari\" abaixo, ou ative a voz natural."
+          : "Nenhum som começou. Confira o volume e se a chave lateral do iPhone não está no silencioso.");
+        setSemSom(true);
+      }
     }, 4000);
   }, [trechos, marcar, data]);
 
@@ -232,6 +262,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
 
   // ---------- Ações ----------
   const usarAparelho = (i = idxRef.current) => {
+    destravarAudioIOS(silencioUrl.current);
     audio.current?.pause();
     setModo("aparelho"); modoRef.current = "aparelho";
     setGerando(false);
@@ -268,8 +299,9 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
     }
   };
 
-  const pausar = () => { if (modo === "neural") audio.current?.pause(); else { pararAparelho(); setTocando(false); } };
+  const pausar = () => { if (modo === "neural") audio.current?.pause(); else { pararAparelho(); setTocando(false); soltarAudioIOS(); } };
   const continuar = () => {
+    if (modo === "aparelho") destravarAudioIOS(silencioUrl.current);
     if (modo === "neural" && manifesto) tocarNeural(manifesto);
     else if (modo === "aparelho") falar(idxRef.current);
   };
@@ -293,6 +325,7 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
   }, [trechos, total, irPara]);
 
   const fechar = () => {
+    soltarAudioIOS();
     audio.current?.pause();
     pararAparelho();
     setTocando(false);
@@ -370,6 +403,10 @@ export default function LeitorVoz({ data, trechos }: { data: string; trechos: T[
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {aviso && <p role="alert" className="text-xs font-medium mb-0.5">{aviso}</p>}
+          {semSom && ehIOS() && instalado() && (
+            <a href={typeof window !== "undefined" ? window.location.href : "/"} target="_blank" rel="noopener"
+              className="mb-1 inline-flex rounded-lg bg-[var(--tinta)] text-[var(--papel)] px-3 py-1.5 text-xs font-semibold">Abrir no Safari</a>
+          )}
           <p className="text-[0.95rem] font-semibold truncate">{secao}</p>
           <p className="text-xs text-[var(--suave)]">
             {estado}

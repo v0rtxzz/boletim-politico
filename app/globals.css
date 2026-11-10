@@ -47,10 +47,11 @@
   color-scheme: dark;
 }
 
+/* Tamanho do texto (botão "Aa"): muda a base em rem, então vale para o site inteiro. */
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 6.5rem; --escala: 1; }
-html[data-texto="p"] { --escala: 0.9; }
-html[data-texto="g"] { --escala: 1.12; }
-html[data-texto="gg"] { --escala: 1.25; }
+html[data-texto="p"] { font-size: 90%; }
+html[data-texto="g"] { font-size: 112.5%; }
+html[data-texto="gg"] { font-size: 125%; }
 body {
   background: var(--papel);
   color: var(--tinta);

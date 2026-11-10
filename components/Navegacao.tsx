@@ -26,7 +26,7 @@ export function Topo() {
   return (
     <header className="pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-[42rem] px-5 h-14 flex items-center justify-between">
-        <Link href="/" className="font-serif text-[1.2rem] font-semibold tracking-[-0.01em] [font-variation-settings:'opsz'_36]">
+        <Link href="/" className="font-serif text-[19px] whitespace-nowrap font-semibold tracking-[-0.01em] [font-variation-settings:'opsz'_36]">
           Boletim Político
         </Link>
         <div className="flex items-center gap-1">
