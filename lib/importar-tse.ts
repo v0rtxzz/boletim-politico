@@ -71,8 +71,8 @@ export async function lerCandidaturas(ano: number) {
 
 export async function gravarCandidaturas(lista: Cand[]) {
   let n = 0;
-  for (let i = 0; i < lista.length; i += 2000) {
-    const { data, error } = await supabase.rpc("importar_candidaturas", { p_segredo: process.env.CRON_SECRET, p_lista: lista.slice(i, i + 2000) });
+  for (let i = 0; i < lista.length; i += 500) {
+    const { data, error } = await supabase.rpc("importar_candidaturas", { p_segredo: process.env.CRON_SECRET, p_lista: lista.slice(i, i + 500) });
     if (error) throw new Error(error.message);
     n += data as number;
   }

@@ -83,8 +83,8 @@ export async function gravarImportados(casa: "camara" | "senado", itens: Item[])
       if (error) throw new Error(error.message);
       gravados += data as number;
     }
-    for (let i = 0; i < mandatos.length; i += 2000) {
-      const { error } = await supabase.rpc("importar_mandatos_partido", { p_segredo: process.env.CRON_SECRET, p_lista: mandatos.slice(i, i + 2000) });
+    for (let i = 0; i < mandatos.length; i += 500) {
+      const { error } = await supabase.rpc("importar_mandatos_partido", { p_segredo: process.env.CRON_SECRET, p_lista: mandatos.slice(i, i + 500) });
       if (error) throw new Error(error.message);
     }
     return { pessoas: unicos.length, gravados, mandatos: mandatos.length };
