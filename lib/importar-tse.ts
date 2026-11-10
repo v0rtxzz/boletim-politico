@@ -88,7 +88,8 @@ export async function gravarCandidaturas(lista: Cand[]) {
 
 
 /** Votos nominais por candidatura (soma das zonas), lidos em fluxo do arquivo oficial de votação. */
-export async function lerVotos(ano: number) {
+/** `ufs` limita a leitura a alguns estados (o arquivo é grande demais para uma só execução). */
+export async function lerVotos(ano: number, ufs?: string[]) {
   const { Unzip, UnzipInflate } = await import("fflate");
   const r = await fetch(FONTE_VOTOS(ano), { headers: UA, cache: "no-store" });
   if (!r.ok || !r.body) throw new Error(`TSE (votação) respondeu ${r.status}`);
@@ -100,18 +101,21 @@ export async function lerVotos(ano: number) {
     const nome = arq.name.toLowerCase();
     if (!nome.endsWith(".csv")) return;
     // Há um arquivo por UF e, em alguns anos, um consolidado BRASIL: usamos só um dos dois.
-    if (/brasil/i.test(nome)) { if (vistos.size) return; vistos.add("BRASIL"); } else if (vistos.has("BRASIL")) return; else vistos.add(nome);
+    if (ufs) { const m = nome.match(/_([a-z]{2})\.csv$/); if (!m || !ufs.includes(m[1].toUpperCase())) return; }
+    else if (/brasil/i.test(nome)) { if (vistos.size) return; vistos.add("BRASIL"); } else if (vistos.has("BRASIL")) return; else vistos.add(nome);
     const dec = new TextDecoder("latin1");
     let resto = "";
-    let ix: { sq: number; turno: number; votos: number } | null = null;
+    let ix: { sq: number; turno: number; votos: number; cargo: number } | null = null;
     const linha = (l: string) => {
       if (!l) return;
       const c = l.split(";");
       if (!ix) {
         const cab = c.map((x) => x.replace(/^"|"$/g, "").toUpperCase().trim());
-        ix = { sq: cab.indexOf("SQ_CANDIDATO"), turno: cab.indexOf("NR_TURNO"), votos: cab.findIndex((x) => x === "QT_VOTOS_NOMINAIS" || x === "QT_VOTOS_NOMINAIS_VALIDOS") };
+        ix = { sq: cab.indexOf("SQ_CANDIDATO"), turno: cab.indexOf("NR_TURNO"), votos: cab.findIndex((x) => x === "QT_VOTOS_NOMINAIS" || x === "QT_VOTOS_NOMINAIS_VALIDOS"), cargo: cab.indexOf("CD_CARGO") };
         return;
       }
+      // Presidente e vice somam votos de todos os estados: ficam de fora da leitura parcial.
+      if (ufs && ix.cargo >= 0 && /^"?[12]"?$/.test(c[ix.cargo] ?? "")) return;
       const sq = (c[ix.sq] ?? "").replace(/"/g, "");
       const v = Number((c[ix.votos] ?? "0").replace(/"/g, "")) || 0;
       const k = `${sq}|${(c[ix.turno] ?? "1").replace(/"/g, "")}`;

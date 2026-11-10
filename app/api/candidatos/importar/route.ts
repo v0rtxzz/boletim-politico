@@ -20,7 +20,8 @@ export async function GET(req: Request) {
   if (!(ano >= 1994 && ano <= 2030 && ano % 2 === 0)) return NextResponse.json({ erro: "ano de eleição inválido" }, { status: 400 });
   try {
     if (u.searchParams.has("votos")) {
-      const votos = await lerVotos(ano);
+      const ufs = u.searchParams.get("ufs")?.toUpperCase().split(",").filter(Boolean);
+      const votos = await lerVotos(ano, ufs?.length ? ufs : undefined);
       return NextResponse.json({ ano, candidaturas_com_votos: votos.length, atualizados: await gravarVotos(ano, votos) });
     }
     const { candidaturas, diag } = await lerCandidaturas(ano);
