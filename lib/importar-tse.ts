@@ -143,8 +143,8 @@ export async function lerVotos(ano: number, ufs?: string[]) {
 
 export async function gravarVotos(ano: number, lista: { sq: string; v: number }[]) {
   let n = 0;
-  for (let i = 0; i < lista.length; i += 3000) {
-    const { data, error } = await supabase.rpc("importar_votos", { p_segredo: process.env.CRON_SECRET, p_ano: ano, p_lista: lista.slice(i, i + 3000) });
+  for (let i = 0; i < lista.length; i += 1000) {
+    const { data, error } = await supabase.rpc("importar_votos", { p_segredo: process.env.CRON_SECRET, p_ano: ano, p_lista: lista.slice(i, i + 1000) });
     if (error) throw new Error(error.message);
     n += data as number;
   }
