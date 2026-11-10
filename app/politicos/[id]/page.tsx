@@ -7,6 +7,7 @@ import { IconeExterno } from "@/components/Icones";
 import { CARGO, dadosOficiais, getPolitico, noticiasDoPolitico } from "@/lib/politicos";
 import { formatarData } from "@/lib/supabase";
 import type { TipoNoticia } from "@/lib/partidos";
+import { candidaturasDoPolitico, cargoBonito, situacaoBonita } from "@/lib/candidaturas";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function PaginaPolitico({ params }: Props) {
   if (!/^(dep|sen)-\d+$/.test(id)) notFound();
   const p = await getPolitico(id);
   if (!p) notFound();
-  const [dados, noticias] = await Promise.all([dadosOficiais(p), noticiasDoPolitico(p.nome)]);
+  const [dados, noticias, cands] = await Promise.all([dadosOficiais(p), noticiasDoPolitico(p.nome), candidaturasDoPolitico(p.nome, p.uf)]);
   const casaNome = p.casa === "camara" ? "Câmara dos Deputados" : "Senado Federal";
 
   return (
@@ -94,6 +95,21 @@ export default async function PaginaPolitico({ params }: Props) {
               <li key={i} className="py-2.5 border-t border-[var(--fio)] first:border-t-0 flex justify-between gap-4 text-sm">
                 <span>{m.descricao}</span>
                 <span className="text-[var(--suave)] text-right">{[m.inicio, m.fim].filter(Boolean).join(" a ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {cands.length > 0 && (
+        <section aria-labelledby="t-cands" className="mt-8">
+          <h2 id="t-cands" className="text-[1.15rem] font-semibold">Candidaturas (TSE)</h2>
+          <p className="mt-1 text-sm text-[var(--suave)]">Encontradas pelo nome de urna e estado nas eleições gerais desde 1994.</p>
+          <ul className="mt-3 rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] px-4 py-1">
+            {cands.map((c) => (
+              <li key={`${c.ano}-${c.sq_candidato}`} className="py-2.5 border-t border-[var(--fio)] first:border-t-0 flex justify-between gap-4 text-sm">
+                <span><span className="num font-medium">{c.ano}</span> · {cargoBonito(c.cargo)}{c.uf && c.uf !== "BR" ? `-${c.uf}` : ""}{c.partido_sigla ? `, ${c.partido_sigla}` : ""}</span>
+                <span className="text-[var(--suave)] text-right">{situacaoBonita(c.situacao)}</span>
               </li>
             ))}
           </ul>

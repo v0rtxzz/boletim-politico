@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 const AREAS = [
   { href: "/partidos", titulo: "Partidos", texto: "Os partidos registrados no TSE, suas bancadas e as notícias em que aparecem." },
-  { href: "/politicos", titulo: "Políticos", texto: "Deputados federais e senadores em exercício, com foto, histórico de partidos e mandatos." },
+  { href: "/politicos", titulo: "Políticos", texto: "Congresso atual e ex-parlamentares desde o Império, com foto, histórico de partidos e mandatos." },
+  { href: "/candidatos", titulo: "Candidatos", texto: "Quem se candidatou a presidente, governador, senador e deputado federal desde 1994." },
   { href: "/stf", titulo: "STF", texto: "Os ministros do Supremo, quem indicou cada um, há quanto tempo estão lá e como o tribunal funciona." },
   { href: "/politica/historia", titulo: "Chefes de Estado", texto: "Imperadores e presidentes do Brasil: período, como chegaram e como saíram do cargo." },
   { href: "/retrospectiva", titulo: "Retrospectiva", texto: "Acontecimentos importantes dos últimos 12 meses, com fonte." },

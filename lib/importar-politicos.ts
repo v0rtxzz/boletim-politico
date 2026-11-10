@@ -68,6 +68,8 @@ export async function importarSenado(de: number, ate: number) {
 
 export async function gravarImportados(casa: "camara" | "senado", itens: Item[]) {
   {
+    // Partido de cada pessoa em CADA legislatura (para "pessoas do partido em todas as épocas").
+    const mandatos = itens.map((it) => ({ id: it.id, casa, legislatura: it.legislatura, periodo: it.periodo, partido_sigla: it.partido_sigla, partido_slug: it.partido_slug, uf: it.uf }));
     // Uma linha por pessoa: fica a da legislatura mais recente do lote.
     const porId = new Map<string, Item>();
     for (const it of itens) { const a = porId.get(it.id); if (!a || it.legislatura >= a.legislatura) porId.set(it.id, it); }
@@ -81,6 +83,10 @@ export async function gravarImportados(casa: "camara" | "senado", itens: Item[])
       if (error) throw new Error(error.message);
       gravados += data as number;
     }
-    return { pessoas: unicos.length, gravados };
+    for (let i = 0; i < mandatos.length; i += 2000) {
+      const { error } = await supabase.rpc("importar_mandatos_partido", { p_segredo: process.env.CRON_SECRET, p_lista: mandatos.slice(i, i + 2000) });
+      if (error) throw new Error(error.message);
+    }
+    return { pessoas: unicos.length, gravados, mandatos: mandatos.length };
   }
 }

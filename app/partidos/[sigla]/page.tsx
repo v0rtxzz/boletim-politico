@@ -8,10 +8,12 @@ import SeloTipo from "@/components/SeloTipo";
 import { IconeExterno } from "@/components/Icones";
 import BuscaPoliticos from "@/components/BuscaPoliticos";
 import { politicosDoPartido } from "@/lib/politicos";
+import { pessoasDoPartido } from "@/lib/candidaturas";
+import FotoPolitico from "@/components/FotoPolitico";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ sigla: string }>; searchParams: Promise<{ periodo?: string; tema?: string }> };
+type Props = { params: Promise<{ sigla: string }>; searchParams: Promise<{ periodo?: string; tema?: string; pessoa?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { sigla } = await params;
@@ -47,11 +49,11 @@ function Filtro({ href, ativo, children }: { href: string; ativo: boolean; child
 
 export default async function PaginaPartido({ params, searchParams }: Props) {
   const { sigla } = await params;
-  const { periodo = "tudo", tema = "" } = await searchParams;
+  const { periodo = "tudo", tema = "", pessoa = "" } = await searchParams;
   const p = await getPartido(sigla);
   if (!p) notFound();
 
-  const [noticias, membros] = await Promise.all([noticiasDoPartido(p.slug, periodo, tema), politicosDoPartido(p.slug)]);
+  const [noticias, membros, historico] = await Promise.all([noticiasDoPartido(p.slug, periodo, tema), politicosDoPartido(p.slug), pessoasDoPartido(p.slug, pessoa)]);
   const boletins = await boletinsPorId([...new Set(noticias.map((n) => n.boletim_id).filter((x): x is number => x !== null))]);
   const url = (o: { periodo?: string; tema?: string }) => {
     const q = new URLSearchParams();
@@ -80,8 +82,9 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
         <Dado rotulo="Registro no TSE" valor={p.deferimento ? `Deferido em ${p.deferimento}` : p.registrado ? "Registrado" : "Fora da lista atual"} fonte={p.fonte_registro} quando={p.registro_atualizado_em} nomeFonte="Tribunal Superior Eleitoral" />
       </dl>
 
-      <nav aria-label="Nesta página" className="mt-6 flex gap-2 text-sm">
+      <nav aria-label="Nesta página" className="mt-6 flex gap-2 text-sm overflow-x-auto no-scrollbar -mx-5 px-5">
         <a href="#politicos" className="rounded-full border border-[var(--fio)] px-3.5 py-2 hover:bg-[var(--acento-fundo)]">Políticos do partido</a>
+        <a href="#todas-as-epocas" className="rounded-full border border-[var(--fio)] px-3.5 py-2 hover:bg-[var(--acento-fundo)]">Todas as épocas</a>
         <a href="#noticias" className="rounded-full border border-[var(--fio)] px-3.5 py-2 hover:bg-[var(--acento-fundo)]">Notícias</a>
       </nav>
 
@@ -91,6 +94,37 @@ export default async function PaginaPartido({ params, searchParams }: Props) {
         {membros.length === 0
           ? <p className="text-[var(--suave)]">O partido não tem deputados federais nem senadores em exercício.</p>
           : <BuscaPoliticos politicos={membros.map(({ id, casa, nome, partido_sigla, uf, foto_url }) => ({ id, casa, nome, partido_sigla, uf, foto_url }))} ocultarPartido />}
+      </section>
+
+      <section id="todas-as-epocas" className="mt-12 scroll-mt-20" aria-labelledby="t-epocas">
+        <h2 id="t-epocas" className="text-[1.35rem] font-semibold tracking-[-0.01em]">Pessoas do partido em todas as épocas</h2>
+        <p className="mt-1 text-sm text-[var(--suave)]">Quem foi candidato pelo {p.sigla} (TSE, desde 1994) ou exerceu mandato no Congresso pelo partido. Busque qualquer nome.</p>
+        <form action={`/partidos/${p.slug}#todas-as-epocas`} className="mt-3 flex gap-2" role="search">
+          <input name="pessoa" type="search" defaultValue={pessoa} placeholder="Nome de alguém do partido" aria-label="Buscar pessoa do partido"
+            className="flex-1 min-w-0 rounded-xl border border-[var(--fio)] bg-transparent px-3.5 py-2.5 text-base outline-none focus-visible:border-[var(--suave)]" />
+          <button className="rounded-xl bg-[var(--tinta)] text-[var(--papel)] px-4 text-sm font-medium cursor-pointer">Buscar</button>
+        </form>
+        {historico.length === 0
+          ? <p className="mt-3 text-[var(--suave)]">{pessoa ? `Ninguém com “${pessoa}” no histórico do ${p.sigla}.` : "Histórico em carregamento."}</p>
+          : (
+            <ul className="mt-3 rounded-2xl bg-[var(--superficie)] shadow-[var(--sombra)] overflow-hidden">
+              {historico.map((h, i) => {
+                const conteudo = (
+                  <span className="flex items-center gap-3 px-4 py-3">
+                    <FotoPolitico src={h.foto_url} nome={h.nome} tamanho={40} />
+                    <span className="min-w-0"><span className="block font-medium leading-snug">{h.nome}</span>
+                    <span className="block text-sm text-[var(--suave)]">{h.papel}{h.uf && h.uf !== "BR" ? `, ${h.uf}` : ""}</span></span>
+                  </span>
+                );
+                return (
+                  <li key={i} className="border-t border-[var(--fio)] first:border-t-0">
+                    {h.politico_id ? <Link href={`/politicos/${h.politico_id}`} className="block hover:bg-[var(--acento-fundo)]">{conteudo}</Link> : conteudo}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        {!pessoa && historico.length > 0 && <p className="mt-2 text-xs text-[var(--suave)]">Mostrando as 40 mais recentes. Use a busca para encontrar qualquer pessoa.</p>}
       </section>
 
       <h2 id="noticias" className="mt-12 scroll-mt-20 text-[1.35rem] font-semibold tracking-[-0.01em]">Notícias</h2>

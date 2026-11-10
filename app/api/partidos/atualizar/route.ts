@@ -33,6 +33,8 @@ export async function GET(req: Request) {
       if (!res.ok) continue;
       const { data: n, error: e } = await supabase.rpc("atualizar_politicos", { p_segredo: process.env.CRON_SECRET, p_casa: casa, p_fonte: fonte, p_lista: res.v.politicos });
       politicos[casa] = e ? `erro: ${e.message}` : n;
+      await supabase.rpc("importar_mandatos_partido", { p_segredo: process.env.CRON_SECRET, p_lista: res.v.politicos.map((x) => ({
+        id: x.id, casa, legislatura: 57, periodo: "2023–2027", partido_sigla: x.partido_sigla, partido_slug: x.partido_slug, uf: x.uf })) });
     }
   }
   const tse = await pTse;
