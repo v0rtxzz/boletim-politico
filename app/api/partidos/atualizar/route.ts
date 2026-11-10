@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { gravarImportados, importarCamara } from "@/lib/importar-politicos";
 import { FONTE_CAMARA, FONTE_SENADO, FONTE_TSE, PAGINA_TSE, buscarBancadaCamara, buscarBancadaSenado, buscarRegistroTSE } from "@/lib/partidos-oficial";
 
 export const runtime = "nodejs";
@@ -71,7 +72,20 @@ export async function GET(req: Request) {
   });
   if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
 
+  // Importação gradual de ex-deputados (da legislatura mais recente para a mais antiga), dentro do tempo restante.
+  const importacao: string[] = [];
+  const inicio = Date.now();
+  while (Date.now() - inicio < 120_000) {
+    const { data: prox } = await supabase.rpc("progresso_importacao", { p_segredo: process.env.CRON_SECRET });
+    const n = Number(prox);
+    if (!n || n < 1) break;
+    try {
+      const r = await gravarImportados("camara", await importarCamara(n, n));
+      importacao.push(`${n}ª: ${r.pessoas}`);
+      await supabase.rpc("progresso_importacao", { p_segredo: process.env.CRON_SECRET, p_valor: n - 1 });
+    } catch (e) { importacao.push(`${n}ª: ${(e as Error).message.slice(0, 80)}`); break; }
+  }
   const falhas = { tse: tse.ok ? null : tse.erro, camara: camara.ok ? null : camara.erro, senado: senado.ok ? null : senado.erro };
   console.log("partidos atualizados", data, falhas);
-  return NextResponse.json({ resultado: data, politicos, falhas });
+  return NextResponse.json({ resultado: data, politicos, importacao, falhas });
 }
